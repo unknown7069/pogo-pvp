@@ -6,19 +6,7 @@
   <title>Team Select</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
-    :root {
-      --gap: 10px;
-      --item-h: 92px; /* grid item height */
-    }
-    .phone {
-      display: flex;
-      justify-content: flex-start;
-      flex-direction: column;
-      align-items: stretch;
-      overflow: hidden;
-      font-family: sans-serif;
-      background: #fff;
-    }
+    /* Page-specific tweaks only; shared styles live in styles.css */
     .team-header {
       padding: 8px 12px;
       font-size: 16px;
@@ -55,46 +43,12 @@
       background: #fff;
     }
 
-    /* Scrollable grid area (fills remaining space; no fixed height) */
-    .pokemon-grid {
-      padding: 12px;
-      background: #fafafa;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      grid-auto-rows: var(--item-h);
-      gap: var(--gap);
-      /* Let this area grow to fill available vertical space */
-      flex: 1 1 auto;
-      min-height: 0; /* allow child to shrink for overflow */
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-y;
-      cursor: grab; /* desktop hint */
-    }
-    /* dragging state is shared in styles.css */
-
-    .pokemon-btn {
-      width: 100%;
-      height: 100%;
-      border: 1px solid #d0d0d0;
-      border-radius: 10px;
-      background: #fff;
-      color: #111;
-      font-size: 16px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.15s, transform 0.05s;
-    }
-    .pokemon-btn:active { background: #f0f0f0; transform: scale(0.996); }
-    .pokemon-btn.selected { outline: 3px solid #007aff; outline-offset: -3px; }
-
-    /* bottom bar uses shared .action-bar and .btn styles */
+    .pokemon-grid { margin-top: var(--gap); }
+    /* dragging state and button styles are shared */
   </style>
 </head>
 <body>
-  <div class="phone">
+  <div class="phone phone-column">
     <div class="team-header">team select</div>
     <div class="top-select">
       <div class="slot" data-slot="0">Empty</div>

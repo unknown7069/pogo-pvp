@@ -7,6 +7,10 @@ body {
   align-items: center;
 }
 
+:root {
+  --gap: 10px;
+}
+
 .phone {
   background-color: #fff;
   width: min(100vw, calc(100vh * 9 / 16));
@@ -16,6 +20,17 @@ body {
   align-items: center;
   aspect-ratio: 9 / 16;
   font-family: sans-serif;
+}
+
+/* Column layout for app pages */
+.phone-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  overflow: hidden;
+  font-family: sans-serif;
+  background: #fff;
 }
 
 /* Shared bottom action bar */
@@ -43,3 +58,38 @@ body {
 
 /* Shared drag state */
 .dragging { cursor: grabbing !important; user-select: none; }
+
+/* Shared Pokemon grid and buttons */
+.pokemon-grid {
+  padding: 12px;
+  background: #fafafa;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: auto; /* let cards define height */
+  gap: var(--gap);
+  /* fill available space and allow internal scroll */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  cursor: grab; /* desktop drag hint */
+}
+
+.pokemon-btn {
+  width: 100%;
+  /* Slightly taller than wide */
+  aspect-ratio: 9 / 10;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.05s;
+}
+.pokemon-btn:active { background: #f0f0f0; transform: scale(0.996); }
+.pokemon-btn.selected { outline: 3px solid #007aff; outline-offset: -3px; }
