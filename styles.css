@@ -17,3 +17,29 @@ body {
   aspect-ratio: 9 / 16;
   font-family: sans-serif;
 }
+
+/* Shared bottom action bar */
+.action-bar {
+  padding: 10px 12px 14px;
+  border-top: 1px solid #e5e5e5;
+  background: #fff;
+  display: grid;
+  gap: 10px;
+}
+.action-bar.two { grid-template-columns: 1fr 1fr; }
+
+/* Shared button styles */
+.btn {
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+  width: 100%;
+}
+.btn-primary { background: #007aff; color: #fff; }
+.btn-secondary { background: #f2f2f7; color: #111; border-color: #d0d0d0; }
+
+/* Shared drag state */
+.dragging { cursor: grabbing !important; user-select: none; }

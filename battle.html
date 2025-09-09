@@ -57,31 +57,7 @@
       transform: scale(0.996);
     }
 
-    /* While dragging, prevent selection and show grabbing cursor */
-    .dragging {
-      cursor: grabbing !important;
-      user-select: none;
-    }
-
-    /* Bottom fixed action bar */
-    .battle-actions {
-      padding: 10px 12px 14px;
-      border-top: 1px solid #e5e5e5;
-      background: #fff;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .btn {
-      padding: 14px 16px;
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: 700;
-      border: 1px solid transparent;
-      cursor: pointer;
-    }
-    .btn-primary { background: #007aff; color: #fff; }
-    .btn-secondary { background: #f2f2f7; color: #111; border-color: #d0d0d0; }
+    /* Bottom bar uses shared .action-bar and .btn styles from styles.css */
   </style>
   </head>
 <body>
@@ -95,64 +71,20 @@
       <button class="battle-btn">Button 5</button>
       <button class="battle-btn">Button 6</button>
     </div>
-    <div class="battle-actions">
+    <div class="battle-actions action-bar two">
       <button class="btn btn-secondary" id="itemsBtn" type="button">Items</button>
       <button class="btn btn-primary" id="pokemonBtn" type="button">Pokemon</button>
     </div>
   </div>
   <script src="shared.js"></script>
   <script>
-    // Enable click-and-drag scrolling on desktop while preserving native touch scroll
+    // Enable click-and-drag scrolling using shared helper
     (function() {
       const list = document.querySelector('.battle-list');
       if (!list) return;
-
-      let isDown = false;
-      let startY = 0;
-      let startScrollTop = 0;
-      let didDrag = false;
-      let suppressNextClick = false;
-
-      const onPointerDown = (e) => {
-        // Only emulate drag for non-touch primary button
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
-        isDown = true;
-        list.classList.add('dragging');
-        startY = e.clientY;
-        startScrollTop = list.scrollTop;
-        didDrag = false;
-      };
-
-      const onPointerMove = (e) => {
-        if (!isDown) return;
-        const dy = e.clientY - startY;
-        if (Math.abs(dy) > 5) didDrag = true;
-        list.scrollTop = startScrollTop - dy; // invert to mimic natural drag
-      };
-
-      const onPointerUp = () => {
-        isDown = false;
-        list.classList.remove('dragging');
-        if (didDrag) {
-          suppressNextClick = true;
-          // Reset after the current click cycle
-          setTimeout(() => { suppressNextClick = false; }, 0);
-        }
-      };
-
-      // Cancel click following a drag gesture
-      const onClickCapture = (e) => {
-        if (suppressNextClick) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      };
-
-      list.addEventListener('pointerdown', onPointerDown);
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-      window.addEventListener('pointercancel', onPointerUp);
-      list.addEventListener('click', onClickCapture, true);
+      if (window.UI && typeof window.UI.attachDragScroll === 'function') {
+        window.UI.attachDragScroll(list);
+      }
 
       // Navigate to team select on button click, and store selection
       list.addEventListener('click', (e) => {
@@ -163,6 +95,7 @@
         const label = btn.textContent.trim();
         if (window.AppState && typeof window.AppState.set === 'function') {
           window.AppState.set('selectedBattle', { index, label });
+          window.AppState.set('teamSelectMode', true); // entering team select mode from battle
         }
         window.location.href = 'team-select.html';
       });
@@ -174,7 +107,7 @@
         window.location.href = 'items.html';
       });
       if (pokemonBtn) pokemonBtn.addEventListener('click', () => {
-        window.location.href = 'team-select.html';
+        window.location.href = 'pokemon.html';
       });
     })();
   </script>
