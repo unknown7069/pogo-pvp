@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Battle</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* Page-specific layout for the battle screen */
+    .phone {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+
+    .battle-header {
+      padding: 16px;
+      font-size: 24px;
+      font-weight: 700;
+      text-align: center;
+      border-bottom: 1px solid #e5e5e5;
+      background: #fff;
+    }
+
+    .battle-list {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch; /* smooth iOS scrolling */
+      touch-action: pan-y; /* allow vertical swipe to scroll */
+      overscroll-behavior: contain;
+      padding: 12px;
+      gap: 8px;
+      display: flex;
+      flex-direction: column;
+      background: #fafafa;
+      cursor: grab; /* desktop drag hint */
+    }
+
+    .battle-btn {
+      width: 100%;
+      display: block;
+      padding: 44px 20px; /* even taller */
+      font-size: 18px;
+      border: 1px solid #d0d0d0;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #111;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.05s;
+    }
+
+    .battle-btn:active {
+      background: #f0f0f0;
+      transform: scale(0.996);
+    }
+
+    /* While dragging, prevent selection and show grabbing cursor */
+    .dragging {
+      cursor: grabbing !important;
+      user-select: none;
+    }
+
+    /* Bottom fixed action bar */
+    .battle-actions {
+      padding: 10px 12px 14px;
+      border-top: 1px solid #e5e5e5;
+      background: #fff;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn {
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+    .btn-primary { background: #007aff; color: #fff; }
+    .btn-secondary { background: #f2f2f7; color: #111; border-color: #d0d0d0; }
+  </style>
+  </head>
+<body>
+  <div class="phone">
+    <div class="battle-header">battle</div>
+    <div class="battle-list">
+      <button class="battle-btn">Button 1</button>
+      <button class="battle-btn">Button 2</button>
+      <button class="battle-btn">Button 3</button>
+      <button class="battle-btn">Button 4</button>
+      <button class="battle-btn">Button 5</button>
+      <button class="battle-btn">Button 6</button>
+    </div>
+    <div class="battle-actions">
+      <button class="btn btn-secondary" id="itemsBtn" type="button">Items</button>
+      <button class="btn btn-primary" id="pokemonBtn" type="button">Pokemon</button>
+    </div>
+  </div>
+  <script src="shared.js"></script>
+  <script>
+    // Enable click-and-drag scrolling on desktop while preserving native touch scroll
+    (function() {
+      const list = document.querySelector('.battle-list');
+      if (!list) return;
+
+      let isDown = false;
+      let startY = 0;
+      let startScrollTop = 0;
+      let didDrag = false;
+      let suppressNextClick = false;
+
+      const onPointerDown = (e) => {
+        // Only emulate drag for non-touch primary button
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        isDown = true;
+        list.classList.add('dragging');
+        startY = e.clientY;
+        startScrollTop = list.scrollTop;
+        didDrag = false;
+      };
+
+      const onPointerMove = (e) => {
+        if (!isDown) return;
+        const dy = e.clientY - startY;
+        if (Math.abs(dy) > 5) didDrag = true;
+        list.scrollTop = startScrollTop - dy; // invert to mimic natural drag
+      };
+
+      const onPointerUp = () => {
+        isDown = false;
+        list.classList.remove('dragging');
+        if (didDrag) {
+          suppressNextClick = true;
+          // Reset after the current click cycle
+          setTimeout(() => { suppressNextClick = false; }, 0);
+        }
+      };
+
+      // Cancel click following a drag gesture
+      const onClickCapture = (e) => {
+        if (suppressNextClick) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+
+      list.addEventListener('pointerdown', onPointerDown);
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
+      list.addEventListener('click', onClickCapture, true);
+
+      // Navigate to team select on button click, and store selection
+      list.addEventListener('click', (e) => {
+        const btn = e.target.closest('.battle-btn');
+        if (!btn) return;
+        const buttons = Array.from(list.querySelectorAll('.battle-btn'));
+        const index = buttons.indexOf(btn);
+        const label = btn.textContent.trim();
+        if (window.AppState && typeof window.AppState.set === 'function') {
+          window.AppState.set('selectedBattle', { index, label });
+        }
+        window.location.href = 'team-select.html';
+      });
+
+      // Bottom bar navigation
+      const itemsBtn = document.getElementById('itemsBtn');
+      const pokemonBtn = document.getElementById('pokemonBtn');
+      if (itemsBtn) itemsBtn.addEventListener('click', () => {
+        window.location.href = 'items.html';
+      });
+      if (pokemonBtn) pokemonBtn.addEventListener('click', () => {
+        window.location.href = 'team-select.html';
+      });
+    })();
+  </script>
+</body>
+</html>
