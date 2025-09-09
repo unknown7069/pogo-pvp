@@ -1,0 +1,19 @@
+body {
+  margin: 0;
+  background-color: #000;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.phone {
+  background-color: #fff;
+  width: min(100vw, calc(100vh * 9 / 16));
+  height: min(100vh, calc(100vw * 16 / 9));
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  aspect-ratio: 9 / 16;
+  font-family: sans-serif;
+}
