@@ -65,17 +65,7 @@
       transform: scale(0.996);
     }
 
-    .battle-btn .icon {
-      width: 84px;
-      height: 100%;
-      flex: 0 0 auto;
-      border-radius: 0;
-      object-fit: cover;
-      background: transparent;
-      border: none;
-      /* Enhance visibility on dark background */
-      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 10px rgba(255,255,255,0.20));
-    }
+    .battle-btn .icon { width: 84px; height: 100%; flex: 0 0 auto; border-radius: 0; object-fit: cover; background: transparent; border: none; }
     .battle-btn .content { display:flex; flex-direction: column; justify-content: center; flex: 1 1 auto; }
     .battle-btn .title { font-weight: 800; font-size: 18px; display:block; }
     .battle-btn .subtitle { display:block; margin-top: 4px; font-size: 13px; color: #666; font-weight: 600; }
@@ -139,14 +129,26 @@
 
     .rocket-theme .battle-btn {
       border: 1px solid #2b2c30;
-      background: #141519;
+      /* Subtle red tint on the right over a dark base */
+      background:
+        linear-gradient(90deg, rgba(229,30,42,0) 0%, rgba(229,30,42,0.10) 85%, rgba(229,30,42,0.16) 100%),
+        linear-gradient(0deg, #141519, #141519);
       color: #f4f4f7;
       position: relative;
       overflow: hidden;
       border-radius: 12px;
     }
-    .rocket-theme .battle-btn:hover { background: #181a20; border-color: #3a3d45; }
-    .rocket-theme .battle-btn:active { background: #101116; }
+    .rocket-theme .battle-btn:hover {
+      background:
+        linear-gradient(90deg, rgba(229,30,42,0) 0%, rgba(229,30,42,0.14) 85%, rgba(229,30,42,0.22) 100%),
+        linear-gradient(0deg, #181a20, #181a20);
+      border-color: #3a3d45;
+    }
+    .rocket-theme .battle-btn:active {
+      background:
+        linear-gradient(90deg, rgba(229,30,42,0) 0%, rgba(229,30,42,0.12) 85%, rgba(229,30,42,0.18) 100%),
+        linear-gradient(0deg, #101116, #101116);
+    }
     .rocket-theme .battle-btn::before {
       content: '';
       position: absolute;
@@ -169,8 +171,19 @@
       line-height: 1.2;
     }
 
-    .rocket-theme .battle-btn.locked { background: #0f1014; color: #7b7f87; border-color: #23252b; }
-    .rocket-theme .battle-btn.locked:active { background:#0f1014; }
+    .rocket-theme .battle-btn.locked {
+      /* Apply the same subtle red tint on locked cards */
+      background:
+        linear-gradient(90deg, rgba(229,30,42,0) 0%, rgba(229,30,42,0.10) 85%, rgba(229,30,42,0.16) 100%),
+        linear-gradient(0deg, #0f1014, #0f1014);
+      color: #7b7f87;
+      border-color: #23252b;
+    }
+    .rocket-theme .battle-btn.locked:active {
+      background:
+        linear-gradient(90deg, rgba(229,30,42,0) 0%, rgba(229,30,42,0.12) 85%, rgba(229,30,42,0.18) 100%),
+        linear-gradient(0deg, #0d0e12, #0d0e12);
+    }
 
     /* Bottom bar theme overrides */
     .rocket-theme .action-bar { background: #0f1014; border-top: 1px solid #25262b; }

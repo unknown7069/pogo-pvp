@@ -128,11 +128,13 @@
         window.location.href = 'rocket-select.html';
       });
       doneBtn.addEventListener('click', () => {
+        const finalTeam = workingTeam.slice(0, MAX_TEAM);
         if (window.AppState && typeof window.AppState.set === 'function') {
-          window.AppState.set('selectedTeam', workingTeam.slice(0, MAX_TEAM));
+          window.AppState.set('selectedTeam', finalTeam);
         }
-        // Proceed to the new battle page after selection
-        window.location.href = 'battle.html';
+        // Also pass selection via query string as a robust fallback
+        const teamParam = encodeURIComponent(finalTeam.join(','));
+        window.location.href = `battle.html?team=${teamParam}`;
       });
 
       // Enable click-and-drag scrolling using shared helper

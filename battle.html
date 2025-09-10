@@ -104,7 +104,22 @@
     /* Disabled state visuals */
     .move-btn:disabled, .forfeit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
   
-    .hp-hidden { display:none; }</style>
+    .hp-hidden { display:none; }
+
+    /* Switch overlay (choose next Pokémon) */
+    .switch-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 25; padding: 20px; }
+    .switch-overlay.show { display: flex; }
+    .switch-card { width: 100%; max-width: 420px; background: #fff; border-radius: 12px; border: 1px solid #d0d0d0; box-shadow: 0 10px 24px rgba(0,0,0,0.18); overflow: hidden; display:flex; flex-direction:column; }
+    .switch-header { padding: 14px 16px; font-weight: 800; text-align: center; border-bottom: 1px solid #eee; }
+    .switch-countdown { font-weight: 800; color: #ff3b30; }
+    .switch-options { padding: 12px; display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .switch-btn { padding: 14px; border-radius: 10px; border: 1px solid #d0d0d0; background: #fafafa; font-weight: 700; cursor: pointer; }
+    .switch-btn:active { transform: translateY(1px); }
+
+    /* Fade to black overlay at battle end */
+    .fade-overlay { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 100; transition: opacity 400ms ease; }
+    .fade-overlay.show { opacity: 1; }
+  </style>
 </head>
 <body>
   <div class="phone phone-column">
@@ -207,6 +222,29 @@
       <div class="countdown-overlay" id="countdownOverlay" aria-hidden="true">
         <div class="countdown-number" id="countdownText">3</div>
       </div>
+
+      <!-- Switch overlay for selecting next Pokémon -->
+      <div class="switch-overlay" id="switchOverlay" role="dialog" aria-modal="true" aria-labelledby="switchTitle">
+        <div class="switch-card">
+          <div class="switch-header" id="switchTitle">
+            Choose next Pokémon · <span class="switch-countdown" id="switchCountdown">5</span>s
+          </div>
+          <div class="switch-options" id="switchOptions"></div>
+        </div>
+      </div>
+
+      <!-- No team selected error overlay -->
+      <div class="confirm-overlay" id="noTeamOverlay" role="alertdialog" aria-modal="true" aria-labelledby="noTeamTitle">
+        <div class="confirm-card">
+          <div class="confirm-body" id="noTeamTitle">No team selected. Please choose your team first.</div>
+          <div class="confirm-actions">
+            <button class="btn btn-primary" id="noTeamBackBtn" type="button">Return to Rocket Select</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fade overlay used at battle end -->
+      <div class="fade-overlay" id="fadeOverlay" aria-hidden="true"></div>
     </main>
   </div>
 

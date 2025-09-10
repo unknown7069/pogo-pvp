@@ -31,9 +31,7 @@
   function openOverlay() { overlay.classList.add('show'); }
   function closeOverlay() { overlay.classList.remove('show'); }
   function doForfeit() {
-    endBattle('forfeit');
-    if (document.referrer) { history.back(); }
-    else { window.location.href = 'rocket-select.html'; }
+    concludeBattle('forfeit');
   }
 
   if (forfeitBtn) forfeitBtn.addEventListener('click', openOverlay);
@@ -43,6 +41,15 @@
   // Countdown overlay
   const cdOverlay = $('countdownOverlay');
   const cdText = $('countdownText');
+  // End fade overlay
+  const fadeOverlay = $('fadeOverlay');
+  function fadeToBlack(durationMs){
+    if (!fadeOverlay) return;
+    if (durationMs && Number(durationMs) > 0) {
+      fadeOverlay.style.transition = `opacity ${Number(durationMs)}ms ease`;
+    }
+    fadeOverlay.classList.add('show');
+  }
 
   // ---------------------------
   // Moves data (demo balance)
@@ -112,7 +119,27 @@
   // ---------------------------
   // Battle state
   // ---------------------------
-  const selectedTeam = (window.AppState && window.AppState.get('selectedTeam')) || [];
+  // Prefer team from URL param (fallback to stored AppState)
+  let selectedTeam = [];
+  let hasTeam = false;
+  try {
+    const qs = new URLSearchParams(window.location.search);
+    const teamParam = qs.get('team');
+    if (teamParam) {
+      const decoded = decodeURIComponent(teamParam);
+      selectedTeam = decoded.split(',').map(s => s.trim()).filter(Boolean);
+      hasTeam = selectedTeam.length > 0;
+      if (window.AppState && typeof window.AppState.set === 'function') {
+        window.AppState.set('selectedTeam', selectedTeam);
+      }
+    } else {
+      selectedTeam = (window.AppState && window.AppState.get('selectedTeam')) || [];
+      hasTeam = Array.isArray(selectedTeam) && selectedTeam.length > 0;
+    }
+  } catch (_) {
+    selectedTeam = (window.AppState && window.AppState.get('selectedTeam')) || [];
+    hasTeam = Array.isArray(selectedTeam) && selectedTeam.length > 0;
+  }
   const selectedBattle = (window.AppState && window.AppState.get('selectedBattle')) || { index: 7, label: 'Opponent' };
 
   const opponentIdx = Number(selectedBattle.index || 0);
@@ -120,7 +147,7 @@
   function calcCp(idx){ return 200 + ((idx * 37) % 2500); }
 
   // Build player's team (up to 3), instantiate each Pokémon once
-  const teamNames = Array.isArray(selectedTeam) && selectedTeam.length ? selectedTeam : ['Pokemon 1'];
+  const teamNames = Array.isArray(selectedTeam) && selectedTeam.length ? selectedTeam : ['Pokemon 1', '2', '3'];
   const playerTeam = teamNames.map((name) => {
     const idx = parseIndexFromName(name);
     const poke = makePokemon(idx, name);
@@ -141,6 +168,83 @@
 
   let activeOpponentIndex = 0;
   let opponent = opponentTeam[activeOpponentIndex].pokemon;
+
+  // Persist/restore battle state (HP/Energy/active indexes) so switching preserves HP
+  const PERSIST_KEY = 'battleState';
+
+  function snapshotBattleState() {
+    return {
+      stageIndex: opponentIdx,
+      opponentLabel: selectedBattle && selectedBattle.label,
+      activePlayerIndex,
+      activeOpponentIndex,
+      playerTeam: playerTeam.map(m => ({
+        name: m.name,
+        idx: m.idx,
+        hp: m.pokemon.hp,
+        maxHP: m.pokemon.maxHP,
+        energy: m.pokemon.energy,
+        fainted: !!m.fainted,
+      })),
+      opponentTeam: opponentTeam.map(m => ({
+        idx: m.idx,
+        hp: m.pokemon.hp,
+        maxHP: m.pokemon.maxHP,
+        energy: m.pokemon.energy,
+        fainted: !!m.fainted,
+      })),
+      timestamp: Date.now(),
+    };
+  }
+
+  function persistBattleState() {
+    try {
+      if (window.AppState && typeof window.AppState.set === 'function') {
+        window.AppState.set(PERSIST_KEY, snapshotBattleState());
+      }
+    } catch (_) { /* ignore storage errors */ }
+  }
+
+  function restoreBattleStateIfPresent() {
+    try {
+      if (!(window.AppState && typeof window.AppState.get === 'function')) return false;
+      const saved = window.AppState.get(PERSIST_KEY);
+      if (!saved || typeof saved !== 'object') return false;
+      if (Number(saved.stageIndex) !== Number(opponentIdx)) return false;
+      // Validate team matches
+      const savedNames = (saved.playerTeam || []).map(p => p.name);
+      const sameTeam = Array.isArray(savedNames) && savedNames.length === teamNames.length && savedNames.every((n, i) => n === teamNames[i]);
+      if (!sameTeam) return false;
+      // Apply player team hp/energy/fainted
+      (saved.playerTeam || []).forEach((s, i) => {
+        const m = playerTeam[i];
+        if (!m) return;
+        m.fainted = !!s.fainted;
+        m.pokemon.hp = clamp(Number(s.hp || m.pokemon.hp), 0, m.pokemon.maxHP);
+        m.pokemon.energy = clamp(Number(s.energy || 0), 0, 100);
+      });
+      // Apply opponent team
+      (saved.opponentTeam || []).forEach((s, i) => {
+        const m = opponentTeam[i];
+        if (!m) return;
+        m.fainted = !!s.fainted;
+        m.pokemon.hp = clamp(Number(s.hp || m.pokemon.hp), 0, m.pokemon.maxHP);
+        m.pokemon.energy = clamp(Number(s.energy || 0), 0, 100);
+      });
+      // Restore active indices
+      if (typeof saved.activePlayerIndex === 'number') activePlayerIndex = Math.max(0, Math.min(saved.activePlayerIndex, playerTeam.length - 1));
+      if (typeof saved.activeOpponentIndex === 'number') activeOpponentIndex = Math.max(0, Math.min(saved.activeOpponentIndex, opponentTeam.length - 1));
+      // Re-point active references
+      player = playerTeam[activePlayerIndex].pokemon;
+      opponent = opponentTeam[activeOpponentIndex].pokemon;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Attempt to hydrate state on load
+  restoreBattleStateIfPresent();
 
   const state = {
     active: false,
@@ -229,6 +333,7 @@
     if (!state.active) return;
     target.hp = clamp(target.hp - amount, 0, target.maxHP);
     updateHpUI();
+    persistBattleState();
     if (target.hp <= 0) {
       if (target === opponent) {
         // Opponent faint: attempt to switch, otherwise you win
@@ -243,11 +348,13 @@
   function grantEnergy(p, amount) {
     p.energy = clamp(p.energy + amount, 0, ENERGY_CAP);
     updateEnergyUI();
+    persistBattleState();
   }
 
   function spendEnergy(p, cost) {
     p.energy = clamp(p.energy - cost, 0, ENERGY_CAP);
     updateEnergyUI();
+    persistBattleState();
   }
 
   function fastTick(attacker, defender, side) {
@@ -320,6 +427,40 @@
     stopFastLoop('opponent');
     clearInterval(state.timers.opponentAI);
     state.timers.opponentAI = null;
+  }
+
+  function concludeBattle(outcome) {
+    // Stop all loops and record result, then navigate to summary
+    endBattle(outcome);
+    const result = {
+      outcome, // 'win' | 'lose' | 'forfeit'
+      opponent: (selectedBattle && selectedBattle.label) || 'Opponent',
+      stageIndex: Number((selectedBattle && selectedBattle.index) || 0),
+      team: (Array.isArray(teamNames) ? teamNames : []),
+      timestamp: Date.now(),
+    };
+    try {
+      if (window.AppState && typeof window.AppState.set === 'function') {
+        window.AppState.set('lastBattleResult', result);
+        if (typeof window.AppState.remove === 'function') {
+          window.AppState.remove(PERSIST_KEY);
+        }
+      }
+    } catch (_) { /* ignore storage errors */ }
+    // Fallback: write directly to localStorage to guard against wrapper issues
+    try {
+      const STORAGE_KEY = 'pogo-pvp-state';
+      let stateObj = {};
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        stateObj = raw ? JSON.parse(raw) : {};
+      } catch (_) { stateObj = {}; }
+      stateObj.lastBattleResult = result;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj)); } catch (_) {}
+    } catch (_) { /* ignore storage errors */ }
+    // Trigger fade and let finish animation show briefly
+    fadeToBlack(500);
+    setTimeout(() => { window.location.href = 'battle-summary.html'; }, 650);
   }
 
   function showResult(kind) {
@@ -425,6 +566,7 @@
     updateHpUI();
     updateEnergyUI();
     refreshMoveButtons();
+    persistBattleState();
 
     // Resume battle
     state.active = true;
@@ -473,12 +615,13 @@
     setControlsDisabled(true);
     stopAllLoops();
     refreshMoveButtons();
+    persistBattleState();
 
     const opts = availableSwitches();
     if (opts.length === 0) {
       // No Pokémon left
       showResult('lose');
-      endBattle('team_ko');
+      concludeBattle('lose');
       return;
     }
     if (opts.length === 1) {
@@ -508,6 +651,7 @@
     updateHpUI();
     updateEnergyUI();
     refreshMoveButtons();
+    persistBattleState();
   }
 
   function handleOpponentFaint() {
@@ -516,6 +660,7 @@
     state.active = false;
     setControlsDisabled(true);
     stopAllLoops();
+    persistBattleState();
 
     const opts = availableOppSwitches();
     if (opts.length === 0) {
@@ -531,7 +676,7 @@
           if (capped !== prev) window.AppState.set('rocketUnlocked', capped);
         }
       } catch (_) { /* ignore storage errors */ }
-      endBattle('opponent_team_ko');
+      concludeBattle('win');
       return;
     }
 
@@ -543,5 +688,19 @@
     startAllLoops();
   }
 
-  startCountdown();
+  // Handle missing team: show error overlay and block battle
+  const noTeamOverlay = $('noTeamOverlay');
+  const noTeamBackBtn = $('noTeamBackBtn');
+  if (noTeamBackBtn) {
+    noTeamBackBtn.addEventListener('click', () => {
+      window.location.href = 'rocket-select.html';
+    });
+  }
+
+  if (hasTeam) {
+    startCountdown();
+  } else {
+    setControlsDisabled(true);
+    if (noTeamOverlay) noTeamOverlay.classList.add('show');
+  }
 })();

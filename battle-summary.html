@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Battle Summary</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .summary-page { display:flex; flex-direction:column; height:100%; }
+    .summary-header { padding: 16px; text-align:center; font-weight:800; border-bottom:1px solid #e5e5e5; background:#fff; }
+    .summary-body { flex:1 1 auto; display:flex; align-items:center; justify-content:center; background:#fafafa; }
+    .summary-card { width: min(92%, 420px); background:#fff; border:1px solid #e5e5e5; border-radius:12px; padding:20px; text-align:center; }
+    .summary-title { font-size:20px; font-weight:900; margin-bottom:8px; }
+    .summary-sub { color:#555; font-weight:600; margin-bottom:16px; }
+    .summary-actions { padding: 12px; border-top:1px solid #eee; background:#fff; }
+  </style>
+  <script src="shared.js"></script>
+</head>
+<body>
+  <div class="phone phone-column">
+    <main class="summary-page" role="main">
+      <div class="summary-header">Battle Summary</div>
+      <div class="summary-body">
+        <div class="summary-card" id="summaryCard">
+          <div class="summary-title" id="summaryTitle">Battle Result</div>
+          <div class="summary-sub" id="summaryDetail"></div>
+          <button class="btn btn-primary" id="backBtn" type="button">Return to Rocket Select</button>
+        </div>
+      </div>
+      
+    </main>
+  </div>
+  <script>
+    (function(){
+      function setText(el, text){ if (el) el.textContent = text; }
+      // Read only from stored result; do not fall back to URL
+      const r = (window.AppState && window.AppState.get('lastBattleResult')) || null;
+      const titleEl = document.getElementById('summaryTitle');
+      const detailEl = document.getElementById('summaryDetail');
+      const backBtn = document.getElementById('backBtn');
+      
+
+      let title = 'Battle Result';
+      let detail = '';
+      if (r && r.outcome) {
+        if (r.outcome === 'win') title = 'You Won!';
+        else if (r.outcome === 'lose') title = 'You Lost';
+        else if (r.outcome === 'forfeit') title = 'You Forfeited';
+        const vs = r.opponent ? `Opponent: ${r.opponent}` : '';
+        detail = vs
+      } else {
+        detail = 'No recent battle information.';
+      }
+      setText(titleEl, title);
+      setText(detailEl, detail);
+
+      function goBack(){ window.location.href = 'rocket-select.html'; }
+      if (backBtn) backBtn.addEventListener('click', goBack);
+      
+    })();
+  </script>
+</body>
+</html>
