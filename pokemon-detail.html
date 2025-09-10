@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pokemon Detail</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* Page-specific styles to emulate a Pokemon Go-like detail view */
+    .detail-wrap { display: flex; flex-direction: column; height: 100%; background: #f5f5f7; }
+    /* Make entire page (phone) the scroll container for this view */
+    .phone.phone-column { overflow-y: auto; }
+
+    /* Top card with portrait (no level arc) */
+    .top-card {
+      position: relative;
+      background: linear-gradient(180deg, #89c4ff 0%, #ffffff 100%);
+      padding: 24px 16px 64px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .cp-label { text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #0b5db7; }
+    .cp-value { text-align: center; font-size: 28px; font-weight: 800; margin-top: 6px; color: #0b5db7; }
+    .portrait {
+      position: static;
+      margin: 16px auto 0;
+      width: 128px; height: 128px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #ffffff, #d9ecff);
+      border: 4px solid rgba(255,255,255,0.85);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.15);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; color: #0b5db7;
+    }
+    .name-row { margin-top: 12px; text-align: center; font-size: 22px; font-weight: 800; color: #0b5db7; }
+    .meta-row { margin-top: 6px; text-align: center; color: #1f2d3d; font-size: 13px; opacity: 0.85; }
+
+    /* Type chips */
+    .types { margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .chip { padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 12px; color: #fff; }
+    .t-normal{ background:#a8a77a; } .t-fire{ background:#ee8130; } .t-water{ background:#6390f0; }
+    .t-electric{ background:#f7d02c; color:#212121; } .t-grass{ background:#7ac74c; }
+    .t-ice{ background:#96d9d6; color:#212121; } .t-fighting{ background:#c22e28; }
+    .t-poison{ background:#a33ea1; } .t-ground{ background:#e2bf65; color:#212121; }
+    .t-flying{ background:#a98ff3; } .t-psychic{ background:#f95587; }
+    .t-bug{ background:#a6b91a; } .t-rock{ background:#b6a136; }
+    .t-ghost{ background:#735797; } .t-dragon{ background:#6f35fc; }
+    .t-dark{ background:#705746; } .t-steel{ background:#b7b7ce; color:#212121; }
+    .t-fairy{ background:#d685ad; }
+
+    /* Content sections */
+    /* Content now flows; parent handles scrolling */
+    .content { flex: 1 1 auto; overflow: visible; padding: 12px; background:#f5f5f7; }
+    .card { background:#fff; border:1px solid #e6e6e6; border-radius: 14px; padding: 12px; margin-bottom: 12px; }
+    .row { display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+    .label { color:#666; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.4px; }
+    .value { font-weight:800; color:#111; }
+
+    /* HP bar */
+    .hp-bar { height: 10px; background:#eee; border-radius: 999px; overflow: hidden; margin-top: 6px; }
+    .hp-fill { height:100%; background:linear-gradient(90deg,#38d39f,#00b894); width: 50%; }
+
+    /* IV-like stats */
+    .iv { display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-top: 8px; }
+    .iv .stat { text-align:center; }
+    .iv .stat .bar { height: 8px; border-radius: 6px; background:#eee; overflow: hidden; }
+    .iv .stat .fill { height: 100%; background:#007aff; width: 80%; }
+
+    /* Moves list */
+    .moves .move { display:flex; align-items:center; justify-content:space-between; padding: 10px 0; border-bottom:1px solid #f0f0f0; }
+    .moves .move:last-child { border-bottom:none; }
+    .moves .left { display:flex; align-items:center; gap:8px; }
+    .dot { width:10px; height:10px; border-radius:50%; background:#007aff; }
+    .power { font-weight:800; }
+
+    /* close button styles are shared in styles.css */
+  </style>
+  </head>
+<body>
+  <div class="phone phone-column">
+    <div class="detail-wrap">
+      <div class="top-card">
+        <div class="cp-label">CP</div>
+        <div class="cp-value" id="cpValue">1234</div>
+        <div class="portrait" id="portrait">PKMN</div>
+        <div class="name-row" id="nameRow">Pokemon</div>
+        <div class="meta-row" id="metaRow">Lvl 20 • HP 100 / 100</div>
+        <div class="types" id="typeChips"></div>
+      </div>
+
+      <div class="content" id="content">
+        <div class="card">
+          <div class="row">
+            <div>
+              <div class="label">HP</div>
+              <div class="value" id="hpValue">100 / 100</div>
+            </div>
+            <div style="flex:1"></div>
+          </div>
+          <div class="hp-bar"><div class="hp-fill" id="hpFill"></div></div>
+        </div>
+
+        <div class="card">
+          <div class="label">Stats</div>
+          <div class="iv">
+            <div class="stat">
+              <div class="label">Atk</div>
+              <div class="bar"><div class="fill" id="atkFill"></div></div>
+            </div>
+            <div class="stat">
+              <div class="label">Def</div>
+              <div class="bar"><div class="fill" id="defFill"></div></div>
+            </div>
+            <div class="stat">
+              <div class="label">Sta</div>
+              <div class="bar"><div class="fill" id="staFill"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card moves">
+          <div class="label" style="margin-bottom:6px;">Moves</div>
+          <div class="move">
+            <div class="left"><div class="dot"></div><div class="value" id="fastMove">Fast Move</div></div>
+            <div class="power" id="fastPower">8</div>
+          </div>
+          <div class="move">
+            <div class="left"><div class="dot"></div><div class="value" id="chargeMove1">Charge Move 1</div></div>
+            <div class="power" id="chargePower1">70</div>
+          </div>
+          <div class="move">
+            <div class="left"><div class="dot"></div><div class="value" id="chargeMove2">Charge Move 2</div></div>
+            <div class="power" id="chargePower2">100</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <button class="btn btn-primary" id="powerBtn" type="button" style="width:100%">Power Up</button>
+        </div>
+      </div>
+
+      <div class="bottom-close">
+        <button class="close-btn" id="closeBtn" type="button" aria-label="Close">&times;</button>
+      </div>
+    </div>
+  </div>
+  <script src="shared.js"></script>
+  <script>
+    (function(){
+      // Enable drag-to-scroll on the full page container
+      const page = document.querySelector('.phone.phone-column');
+      if (page && window.UI && typeof window.UI.attachDragScroll === 'function') {
+        window.UI.attachDragScroll(page);
+      }
+
+      const data = (window.AppState && window.AppState.get('viewPokemon')) || { name: 'Pokemon 1', index: 0 };
+
+      // Synthetic demo data based on index
+      const idx = Number(data.index || 0);
+      const cp = 200 + (idx*37 % 2500);
+      const level = 10 + (idx % 30);
+      const hpMax = 60 + (idx % 90);
+      const hp = Math.max(10, Math.min(hpMax, hpMax - (idx % 20)));
+      const atk = 40 + (idx*3 % 60);
+      const def = 40 + (idx*5 % 60);
+      const sta = 40 + (idx*7 % 60);
+      const typesList = [
+        ['normal'], ['fire'], ['water'], ['electric'], ['grass'], ['ice'],
+        ['fighting'], ['poison'], ['ground'], ['flying'], ['psychic'], ['bug'],
+        ['rock'], ['ghost'], ['dragon'], ['dark'], ['steel'], ['fairy'],
+        ['water','flying'], ['grass','poison'], ['ground','rock'], ['fire','fighting']
+      ];
+      const types = typesList[idx % typesList.length];
+
+      // Moves demo
+      const fastMoves = ['Quick Attack', 'Dragon Breath', 'Shadow Claw', 'Counter', 'Vine Whip'];
+      const chargeMoves = ['Aqua Tail', 'Body Slam', 'Rock Slide', 'Shadow Ball', 'Hydro Cannon'];
+      const fast = fastMoves[idx % fastMoves.length];
+      const ch1 = chargeMoves[(idx+1) % chargeMoves.length];
+      const ch2 = chargeMoves[(idx+2) % chargeMoves.length];
+
+      // Populate UI
+      const $ = (id) => document.getElementById(id);
+      $('cpValue').textContent = cp;
+      $('portrait').textContent = (data.name || 'Pokemon').slice(0, 4).toUpperCase();
+      $('nameRow').textContent = data.name || 'Pokemon';
+      $('metaRow').textContent = `Lvl ${level} • HP ${hp} / ${hpMax}`;
+      $('hpValue').textContent = `${hp} / ${hpMax}`;
+      $('hpFill').style.width = `${Math.round((hp/hpMax)*100)}%`;
+      $('atkFill').style.width = `${Math.min(100, Math.round(atk))}%`;
+      $('defFill').style.width = `${Math.min(100, Math.round(def))}%`;
+      $('staFill').style.width = `${Math.min(100, Math.round(sta))}%`;
+      $('fastMove').textContent = fast;
+      $('chargeMove1').textContent = ch1;
+      $('chargeMove2').textContent = ch2;
+      $('fastPower').textContent = 6 + (idx % 6) * 2;
+      $('chargePower1').textContent = 50 + (idx % 6) * 10;
+      $('chargePower2').textContent = 80 + (idx % 6) * 15;
+
+      // Type chips
+      const chipWrap = document.getElementById('typeChips');
+      chipWrap.innerHTML = '';
+      types.forEach(t => {
+        const chip = document.createElement('div');
+        chip.className = `chip t-${t}`;
+        chip.textContent = t.toUpperCase();
+        chipWrap.appendChild(chip);
+      });
+
+      // Close (Back)
+      const backBtn = document.getElementById('closeBtn');
+      backBtn.addEventListener('click', () => {
+        if (document.referrer) {
+          history.back();
+        } else {
+          window.location.href = 'pokemon.html';
+        }
+      });
+
+      // Power Up demo
+      const powerBtn = document.getElementById('powerBtn');
+      powerBtn.addEventListener('click', () => {
+        // Simple demo: bump CP and HP a bit
+        const newCp = Math.round(Number(document.getElementById('cpValue').textContent) * 1.05);
+        document.getElementById('cpValue').textContent = newCp;
+        const fill = document.getElementById('hpFill');
+        const w = Math.min(100, parseInt(fill.style.width || '50', 10) + 5);
+        fill.style.width = w + '%';
+      });
+    })();
+  </script>
+</body>
+</html>

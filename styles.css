@@ -93,3 +93,35 @@ body {
 }
 .pokemon-btn:active { background: #f0f0f0; transform: scale(0.996); }
 .pokemon-btn.selected { outline: 3px solid #007aff; outline-offset: -3px; }
+
+/* Shared bottom-centered close (X) control */
+.bottom-close {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 14px;
+  /* soft translucent fade into a light background */
+  background: linear-gradient(180deg, rgba(245,245,247,0), #f5f5f7 60%, #ffffff);
+  margin-top: auto; /* keep at bottom in flex layouts */
+  z-index: 2; /* stay above content */
+}
+.close-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  border: 1px solid #d0d0d0;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: saturate(140%) blur(6px);
+  -webkit-backdrop-filter: saturate(140%) blur(6px);
+  color: #111;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.close-btn:active { transform: scale(0.97); }

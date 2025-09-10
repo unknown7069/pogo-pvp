@@ -8,13 +8,20 @@
   <style>
     /* Page-specific tweaks only; shared grid and button styles are in styles.css */
     /* Bottom back bar uses shared .action-bar and .btn */
+    /* Bottom centered close (X) uses shared styles in styles.css */
+    /* Make entire page scroll like the detail screen */
+    .phone.phone-column { overflow-y: auto; height: 100%; }
+    /* Let the grid flow; page is the scroller */
+    .pokemon-grid { overflow: visible; padding-bottom: 80px; }
+    /* Use the shared sticky footer behavior; no override needed here */
+
   </style>
 </head>
 <body>
   <div class="phone phone-column">
     <div class="pokemon-grid" id="pokemonGrid"></div>
-    <div class="back-bar action-bar">
-      <button class="btn btn-secondary" id="backBtn" type="button">Back</button>
+    <div class="bottom-close">
+      <button class="close-btn" id="closeBtn" type="button" aria-label="Close">&times;</button>
     </div>
   </div>
   <script src="shared.js"></script>
@@ -36,16 +43,29 @@
         });
       }
 
-      // Drag-to-scroll behavior using shared helper
-      if (window.UI && typeof window.UI.attachDragScroll === 'function') {
-        window.UI.attachDragScroll(grid);
+      // Drag-to-scroll on the full page to match detail view
+      const page = document.querySelector('.phone.phone-column');
+      if (page && window.UI && typeof window.UI.attachDragScroll === 'function') {
+        window.UI.attachDragScroll(page);
       }
 
       renderGrid();
 
-      // Back button
-      const backBtn = document.getElementById('backBtn');
-      if (backBtn) backBtn.addEventListener('click', () => {
+      // Navigate to detail on click
+      grid.addEventListener('click', (e) => {
+        const btn = e.target.closest('.pokemon-btn');
+        if (!btn) return;
+        const name = btn.dataset.name;
+        const index = Number(btn.dataset.index || 0);
+        if (window.AppState && typeof window.AppState.set === 'function') {
+          window.AppState.set('viewPokemon', { name, index });
+        }
+        window.location.href = 'pokemon-detail.html';
+      });
+
+      // Bottom close
+      const closeBtn = document.getElementById('closeBtn');
+      if (closeBtn) closeBtn.addEventListener('click', () => {
         if (document.referrer) {
           history.back();
         } else {
