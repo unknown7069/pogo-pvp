@@ -1,0 +1,314 @@
+// Battle logic extracted from battle.html
+(function(){
+  // ---------------------------
+  // Helpers and DOM references
+  // ---------------------------
+  function setHp(barEl, pct) {
+    barEl.style.setProperty('--hp', pct + '%');
+    const color = pct > 50 ? '#2ecc71' : pct > 20 ? '#f1c40f' : '#e74c3c';
+    barEl.style.background = `linear-gradient(90deg, ${color}, ${color})`;
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const oppBar = $('opponent-hp');
+  const oppText = $('opponent-hp-text');
+  const playerBar = $('player-hp');
+  const playerText = $('player-hp-text');
+
+  const moveButtons = Array.from(document.querySelectorAll('.move-btn'));
+
+  // Forfeit/back button: overlay confirm dialog
+  const forfeitBtn = $('forfeitBtn');
+  const overlay = $('forfeitOverlay');
+  const cancelForfeit = $('cancelForfeit');
+  const confirmForfeit = $('confirmForfeit');
+
+  function openOverlay() { overlay.classList.add('show'); }
+  function closeOverlay() { overlay.classList.remove('show'); }
+  function doForfeit() {
+    endBattle('forfeit');
+    if (document.referrer) { history.back(); }
+    else { window.location.href = 'rocket-select.html'; }
+  }
+
+  if (forfeitBtn) forfeitBtn.addEventListener('click', openOverlay);
+  if (cancelForfeit) cancelForfeit.addEventListener('click', closeOverlay);
+  if (confirmForfeit) confirmForfeit.addEventListener('click', doForfeit);
+
+  // Countdown overlay
+  const cdOverlay = $('countdownOverlay');
+  const cdText = $('countdownText');
+
+  // ---------------------------
+  // Moves data (demo balance)
+  // ---------------------------
+  const FAST_POOL = ['Quick Attack','Dragon Breath','Shadow Claw','Counter','Vine Whip'];
+  const CHARGED_POOL = ['Aqua Tail','Body Slam','Rock Slide','Shadow Ball','Hydro Cannon','Hydro Pump'];
+
+  const MOVES = {
+    fast: {
+      'Quick Attack': { name:'Quick Attack', dmg:5, energyGain:8, rateMs:800, type:'normal' },
+      'Dragon Breath': { name:'Dragon Breath', dmg:4, energyGain:9, rateMs:500, type:'dragon' },
+      'Shadow Claw': { name:'Shadow Claw', dmg:6, energyGain:8, rateMs:700, type:'ghost' },
+      'Counter': { name:'Counter', dmg:7, energyGain:8, rateMs:900, type:'fighting' },
+      'Vine Whip': { name:'Vine Whip', dmg:5, energyGain:7, rateMs:600, type:'grass' },
+    },
+    charged: {
+      'Aqua Tail': { name:'Aqua Tail', energy:35, dmg:50, chargeUpMs:1300, type:'water' },
+      'Body Slam': { name:'Body Slam', energy:35, dmg:60, chargeUpMs:1000, type:'normal' },
+      'Rock Slide': { name:'Rock Slide', energy:45, dmg:75, chargeUpMs:1500, type:'rock' },
+      'Shadow Ball': { name:'Shadow Ball', energy:55, dmg:100, chargeUpMs:1700, type:'ghost' },
+      'Hydro Cannon': { name:'Hydro Cannon', energy:50, dmg:90, chargeUpMs:1600, type:'water' },
+      'Hydro Pump': { name:'Hydro Pump', energy:75, dmg:130, chargeUpMs:2400, type:'water' },
+    }
+  };
+
+  const TYPES_LIST = [
+    ['normal'], ['fire'], ['water'], ['electric'], ['grass'], ['ice'],
+    ['fighting'], ['poison'], ['ground'], ['flying'], ['psychic'], ['bug'],
+    ['rock'], ['ghost'], ['dragon'], ['dark'], ['steel'], ['fairy'],
+    ['water','flying'], ['grass','poison'], ['ground','rock'], ['fire','fighting']
+  ];
+
+  // ---------------------------
+  // Pokemon factories
+  // ---------------------------
+  function parseIndexFromName(name) {
+    const m = /([0-9]+)/.exec(String(name||''));
+    if (!m) return 0;
+    const n = Math.max(1, parseInt(m[1], 10));
+    return (n - 1); // 0-based
+  }
+
+  function pickFast(idx) {
+    const key = FAST_POOL[idx % FAST_POOL.length];
+    return MOVES.fast[key];
+  }
+  function pickCharged(idx, offset) {
+    const key = CHARGED_POOL[(idx + offset) % CHARGED_POOL.length];
+    return MOVES.charged[key];
+  }
+
+  function makePokemon(seedIndex, nameLabel) {
+    const idx = Number(seedIndex||0);
+    const types = TYPES_LIST[idx % TYPES_LIST.length];
+    const maxHP = 100; // keep UI simple
+    return {
+      name: nameLabel || `Pokemon ${idx+1}`,
+      types,
+      maxHP,
+      hp: maxHP,
+      energy: 0,
+      fast: pickFast(idx),
+      charged: [ pickCharged(idx,1), pickCharged(idx,2), pickCharged(idx,3) ],
+    };
+  }
+
+  // ---------------------------
+  // Battle state
+  // ---------------------------
+  const selectedTeam = (window.AppState && window.AppState.get('selectedTeam')) || [];
+  const selectedBattle = (window.AppState && window.AppState.get('selectedBattle')) || { index: 7, label: 'Opponent' };
+
+  const playerIdx = selectedTeam.length ? parseIndexFromName(selectedTeam[0]) : 0;
+  const opponentIdx = Number(selectedBattle.index || 0);
+
+  const player = makePokemon(playerIdx, selectedTeam.length ? selectedTeam[0] : 'Pokemon 1');
+  const opponent = makePokemon(opponentIdx, selectedBattle.label || 'Opponent');
+
+  const state = {
+    active: false,
+    controlsDisabled: true,
+    charging: { player: false, opponent: false },
+    timers: { playerFast: null, opponentFast: null, opponentAI: null },
+  };
+
+  // ---------------------------
+  // UI setup
+  // ---------------------------
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+  function updateHpUI() {
+    const pPct = Math.max(0, Math.round((player.hp / player.maxHP) * 100));
+    const oPct = Math.max(0, Math.round((opponent.hp / opponent.maxHP) * 100));
+    playerText.textContent = `${Math.max(0, Math.round(player.hp))}/${player.maxHP}`;
+    oppText.textContent = `${Math.max(0, Math.round(opponent.hp))}/${opponent.maxHP}`;
+    setHp(playerBar, pPct);
+    setHp(oppBar, oPct);
+  }
+
+  function labelForCharged(move){ return `${move.name} (${move.energy})`; }
+
+  function refreshMoveButtons() {
+    moveButtons.forEach((btn, i) => {
+      const move = player.charged[i];
+      if (!move) return;
+      // Update label element under the button
+      const labelEl = btn.parentElement && btn.parentElement.querySelector('.move-label');
+      if (labelEl) labelEl.textContent = labelForCharged(move);
+      // Enable only if battle active, not globally disabled, not charging, and enough energy
+      const canUse = state.active && !state.controlsDisabled && !state.charging.player && (player.energy >= move.energy);
+      btn.disabled = !canUse;
+    });
+  }
+
+  function setControlsDisabled(disabled) {
+    state.controlsDisabled = disabled;
+    // Forfeit reflects global lock
+    if (forfeitBtn) forfeitBtn.disabled = disabled;
+    refreshMoveButtons();
+  }
+
+  // ---------------------------
+  // Battle mechanics
+  // ---------------------------
+  const ENERGY_CAP = 100;
+
+  function applyDamage(target, amount) {
+    if (!state.active) return;
+    target.hp = clamp(target.hp - amount, 0, target.maxHP);
+    updateHpUI();
+    if (target.hp <= 0) {
+      // End battle
+      if (target === opponent) showResult('win'); else showResult('lose');
+      endBattle('ko');
+    }
+  }
+
+  function grantEnergy(p, amount) {
+    p.energy = clamp(p.energy + amount, 0, ENERGY_CAP);
+  }
+
+  function spendEnergy(p, cost) {
+    p.energy = clamp(p.energy - cost, 0, ENERGY_CAP);
+  }
+
+  function fastTick(attacker, defender, side) {
+    if (!state.active) return;
+    if (state.charging[side]) return; // pause during charge-up
+    applyDamage(defender, attacker.fast.dmg);
+    grantEnergy(attacker, attacker.fast.energyGain);
+    refreshMoveButtons();
+  }
+
+  function startFastLoop(side) {
+    const self = side === 'player' ? player : opponent;
+    const foe = side === 'player' ? opponent : player;
+    const rate = self.fast.rateMs;
+    clearInterval(state.timers[side+'Fast']);
+    state.timers[side+'Fast'] = setInterval(() => fastTick(self, foe, side), rate);
+  }
+
+  function stopFastLoop(side) {
+    clearInterval(state.timers[side+'Fast']);
+    state.timers[side+'Fast'] = null;
+  }
+
+  function useChargeMove(side, index) {
+    if (!state.active) return;
+    const attacker = side === 'player' ? player : opponent;
+    const defender = side === 'player' ? opponent : player;
+    const move = attacker.charged[index];
+    if (!move) return;
+    if (attacker.energy < move.energy) return;
+    // Spend energy up-front and pause fast attacks for this side
+    spendEnergy(attacker, move.energy);
+    state.charging[side] = true;
+    stopFastLoop(side);
+    refreshMoveButtons();
+    // Resolve after chargeUp
+    setTimeout(() => {
+      if (!state.active) return;
+      applyDamage(defender, move.dmg);
+      state.charging[side] = false;
+      // Resume autos
+      startFastLoop(side);
+      refreshMoveButtons();
+    }, move.chargeUpMs);
+  }
+
+  function opponentAIThink() {
+    if (!state.active) return;
+    if (state.charging.opponent) return;
+    // Try to use the strongest affordable move
+    const options = opponent.charged
+      .map((m, i) => ({ m, i }))
+      .filter(x => opponent.energy >= x.m.energy);
+    if (options.length === 0) return;
+    options.sort((a,b) => b.m.dmg - a.m.dmg);
+    const choice = options[0];
+    useChargeMove('opponent', choice.i);
+  }
+
+  function startOpponentAI() {
+    clearInterval(state.timers.opponentAI);
+    // Check frequently if AI can throw
+    state.timers.opponentAI = setInterval(opponentAIThink, 250);
+  }
+
+  function endBattle(reason) {
+    state.active = false;
+    setControlsDisabled(true);
+    stopFastLoop('player');
+    stopFastLoop('opponent');
+    clearInterval(state.timers.opponentAI);
+    state.timers.opponentAI = null;
+  }
+
+  function showResult(kind) {
+    // Simple visual feedback
+    const anim = kind === 'win' ? 'flashWin 600ms' : 'flashLose 600ms';
+    document.body.style.animation = anim;
+    setTimeout(() => { document.body.style.animation = ''; }, 700);
+  }
+
+  function startBattle() {
+    state.active = true;
+    setControlsDisabled(false);
+    updateHpUI();
+    refreshMoveButtons();
+    startFastLoop('player');
+    startFastLoop('opponent');
+    startOpponentAI();
+  }
+
+  // Wire player charge buttons
+  moveButtons.forEach((btn, i) => {
+    btn.addEventListener('click', () => {
+      useChargeMove('player', i);
+    });
+  });
+
+  // Initialize labels for player's three charge moves
+  refreshMoveButtons();
+  updateHpUI();
+
+  // 3-second countdown preventing interaction, then start battle
+  function startCountdown() {
+    setControlsDisabled(true);
+    if (cdOverlay) cdOverlay.classList.add('show');
+    let n = 3;
+    if (cdText) {
+      cdText.textContent = n;
+      cdText.classList.remove('pop'); void cdText.offsetWidth; cdText.classList.add('pop');
+    }
+    const timer = setInterval(() => {
+      n -= 1;
+      if (n > 0) {
+        if (cdText) {
+          cdText.textContent = n;
+          cdText.classList.remove('pop'); void cdText.offsetWidth; cdText.classList.add('pop');
+        }
+      } else {
+        clearInterval(timer);
+        if (cdOverlay) cdOverlay.classList.remove('show');
+        // Set up move labels now that we know the moves
+        refreshMoveButtons();
+        startBattle();
+      }
+    }, 1000);
+  }
+
+  startCountdown();
+})();
+

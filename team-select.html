@@ -148,7 +148,8 @@
         if (window.AppState && typeof window.AppState.set === 'function') {
           window.AppState.set('selectedTeam', workingTeam.slice(0,3));
         }
-        window.location.href = 'rocket-select.html';
+        // Proceed to the new battle page after selection
+        window.location.href = 'battle.html';
       });
 
       // Enable click-and-drag scrolling using shared helper
