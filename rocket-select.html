@@ -65,8 +65,18 @@
       transform: scale(0.996);
     }
 
-    .battle-btn .icon { width: 84px; height: 100%; flex: 0 0 auto; border-radius: 10px; object-fit: cover; background:#f0f0f0; border:1px solid #e0e0e0; }
-    .battle-btn .content { display:flex; flex-direction: column; justify-content: center; }
+    .battle-btn .icon {
+      width: 84px;
+      height: 100%;
+      flex: 0 0 auto;
+      border-radius: 0;
+      object-fit: cover;
+      background: transparent;
+      border: none;
+      /* Enhance visibility on dark background */
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 10px rgba(255,255,255,0.20));
+    }
+    .battle-btn .content { display:flex; flex-direction: column; justify-content: center; flex: 1 1 auto; }
     .battle-btn .title { font-weight: 800; font-size: 18px; display:block; }
     .battle-btn .subtitle { display:block; margin-top: 4px; font-size: 13px; color: #666; font-weight: 600; }
 
@@ -86,7 +96,10 @@
        ============================== */
     .rocket-theme {
       color: #e8e8ea;
-      background: radial-gradient(120% 120% at 100% 0%, #1a1a1d 0%, #111114 60%, #0b0b0d 100%);
+      /* Layer the header's red sweep over the dark radial base */
+      background:
+        linear-gradient(90deg, rgba(229,30,42,0.12), rgba(229,30,42,0.04) 38%, rgba(0,0,0,0) 70%),
+        radial-gradient(120% 120% at 100% 0%, #1a1a1d 0%, #111114 60%, #0b0b0d 100%);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
@@ -143,10 +156,18 @@
       background: linear-gradient(180deg, #e51e2a, #b30019);
     }
 
-    .rocket-theme .battle-btn .icon { background:#0e0f13; border:1px solid #2a2c33; width: 96px; }
+    .rocket-theme .battle-btn .icon { background: transparent; border: none; width: 96px; }
     .rocket-theme .battle-btn .content { min-width: 0; }
     .rocket-theme .battle-btn .title { color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .rocket-theme .battle-btn .subtitle { color: #a6a9b1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rocket-theme .battle-btn .subtitle {
+      color: #a6a9b1;
+      white-space: normal; /* allow wrapping */
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2; /* show up to 2 lines */
+      -webkit-box-orient: vertical;
+      line-height: 1.2;
+    }
 
     .rocket-theme .battle-btn.locked { background: #0f1014; color: #7b7f87; border-color: #23252b; }
     .rocket-theme .battle-btn.locked:active { background:#0f1014; }
@@ -187,7 +208,7 @@
     <div class="battle-list" id="rocketList"></div>
     <div class="battle-actions action-bar two">
       <button class="btn btn-secondary" id="itemsBtn" type="button">Items</button>
-      <button class="btn btn-primary" id="pokemonBtn" type="button">Pokemon</button>
+      <button class="btn btn-secondary" id="pokemonBtn" type="button">Pokemon</button>
     </div>
   </div>
   <script src="shared.js"></script>
@@ -236,11 +257,10 @@
           const titleText = locked ? '???' : stage.name;
           const iconSrc = stage.icon || '';
           const img = iconSrc ? `<img class="icon" alt="${titleText}" src="${iconSrc}" referrerpolicy="no-referrer" loading="lazy">` : '';
-          btn.innerHTML = `${img}` +
-                          `<span class="content">` +
+          btn.innerHTML = `<span class="content">` +
                             `<span class="title">${titleText}</span>` +
                             `${locked ? '' : `<span class="subtitle">${stage.quote || ''}</span>`}` +
-                          `</span>`;
+                          `</span>` + `${img}`;
           if (locked) {
             btn.classList.add('locked');
             btn.disabled = true; // prevent focus/interaction
