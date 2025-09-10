@@ -10,26 +10,50 @@
     .battle-screen { display: grid; grid-template-rows: auto auto 1fr auto; height: 100%; }
     .battle-screen *, .battle-screen *::before, .battle-screen *::after { box-sizing: border-box; }
 
-    /* Sky/ground backdrop like classic games */
+    /* Page background image (covers entire phone page) */
+    .phone.phone-column {
+      background: #000 url('battle_background.jpg') center / cover no-repeat;
+    }
+
+    /* Stage area sits on top; let page background show through */
     .battle-stage {
       position: relative;
-      background: linear-gradient(#b7e0ff 55%, #8adf8a 55%);
+      background: transparent;
       overflow: hidden;
     }
 
     /* Top status bar: opponent (left) and player (right) */
-    .battle-forfeit { display:flex; align-items:center; padding: 6px 8px; background:#fff; border-bottom:1px solid #e5e5e5; }
-    .forfeit-btn { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid #d0d0d0; background:#f2f2f7; color:#111; font-weight:700; cursor:pointer; }
+    .battle-forfeit { display:flex; align-items:center; padding: 6px 8px; background: transparent; border-bottom:none; }
+    .forfeit-btn { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.22); color:#fff; font-weight:700; cursor:pointer; }
     .forfeit-btn:active { transform: translateY(1px); }
-    .battle-topbar { display: flex; justify-content: space-between; padding: 10px 12px; gap: 10px; background:#fff; border-bottom:1px solid #e5e5e5; flex-wrap: nowrap; align-items: center; }
+    .battle-topbar { display: flex; justify-content: space-between; padding: 10px 12px; gap: 10px; background: transparent; border-bottom:none; flex-wrap: nowrap; align-items: center; }
     .trainer-side { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 0; }
     .trainer-side.player { order: 1; justify-content: flex-start; }
     .trainer-side.opponent { order: 2; justify-content: flex-end; }
 
-    .hp-card { background:#fff; border: 2px solid #222; border-radius: 8px; padding: 8px 10px; width: 100%; max-width: 260px; min-width: 0; box-shadow: 0 2px 0 rgba(0,0,0,0.15); }
+    .hp-card { background: rgba(0,0,0,0.6); border: none; border-radius: 8px; padding: 8px 10px; width: 100%; max-width: 260px; min-width: 0; box-shadow: none; }
     .hp-name-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; font-weight:700; }
-    .hp-bar-wrap { position:relative; height:10px; background:#e9e9e9; border:1px solid #111; border-radius:6px; overflow:hidden; }
+    .hp-name-row { color:#fff; }
+    .hp-name-row .left { display:flex; align-items:center; gap:8px; min-width:0; }
+    .hp-name-row .name { font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; }
+    .hp-name-row .cp { font-weight:800; color:#fff; font-size:12px; }
+    .type-icons { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+    .type-dot { width:10px; height:10px; border-radius:50%; display:inline-block; border:1px solid rgba(255,255,255,0.9); }
+    /* Type colors */
+    .t-normal{ background:#a8a77a; } .t-fire{ background:#ee8130; } .t-water{ background:#6390f0; }
+    .t-electric{ background:#f7d02c; } .t-grass{ background:#7ac74c; }
+    .t-ice{ background:#96d9d6; } .t-fighting{ background:#c22e28; }
+    .t-poison{ background:#a33ea1; } .t-ground{ background:#e2bf65; }
+    .t-flying{ background:#a98ff3; } .t-psychic{ background:#f95587; }
+    .t-bug{ background:#a6b91a; } .t-rock{ background:#b6a136; }
+    .t-ghost{ background:#735797; } .t-dragon{ background:#6f35fc; }
+    .t-dark{ background:#705746; } .t-steel{ background:#b7b7ce; }
+    .t-fairy{ background:#d685ad; }
+    .hp-bar-wrap { position:relative; height:10px; background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.6); border-radius:6px; overflow:hidden; }
     .hp-bar { position:absolute; inset:0 auto 0 0; width:var(--hp,100%); background:linear-gradient(90deg,#2ecc71,#27ae60); transition: width 200ms ease, background 150ms; }
+    /* Energy bar below HP */
+    .energy-bar-wrap { position:relative; height:8px; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.6); border-radius:6px; overflow:hidden; margin-top:4px; }
+    .energy-bar { position:absolute; inset:0 auto 0 0; width:var(--en,0%); background:linear-gradient(90deg,#00b4ff,#007aff); transition: width 200ms ease; }
     .hp-count { font-size:12px; opacity:0.8; margin-top:4px; display:flex; justify-content:space-between; align-items:center; }
     .pokemon-orbs { display:flex; gap:4px; margin-left:6px; }
     .pokemon-orbs .orb { width:10px; height:10px; border-radius:50%; background:#ddd; border:1px solid #333; }
@@ -46,12 +70,12 @@
     .platform.player { left: 3%; bottom: 12%; }
 
     /* Bottom action area with three circular moves */
-    .battle-actions { background:#fff; border-top:1px solid #e5e5e5; padding:12px 16px 16px; display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; align-items: start; }
+    .battle-actions { background: transparent; border-top:none; padding:12px 16px 16px; display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; align-items: start; }
     .move { display:flex; flex-direction:column-reverse; align-items:center; justify-content:flex-start; gap:6px; min-width:0; }
-    .move-btn { width: clamp(56px, 10vw + 28px, 84px); height: clamp(56px, 10vw + 28px, 84px); border-radius: 999px; background:#ffffff; border:2px solid #222; cursor:pointer; user-select:none; transition: transform 80ms ease, background 120ms ease; display:block; }
-    .move-btn:hover { background:#f0f8ff; }
+    .move-btn { width: clamp(56px, 10vw + 28px, 84px); height: clamp(56px, 10vw + 28px, 84px); border-radius: 999px; background: rgba(255,255,255,0.22); border:2px solid rgba(255,255,255,0.7); cursor:pointer; user-select:none; transition: transform 80ms ease, background 120ms ease; display:block; }
+    .move-btn:hover { background: rgba(255,255,255,0.3); }
     .move-btn:active { transform: translateY(1px); }
-    .move-label { font-size: 12px; font-weight: 700; text-align: center; color: #111; max-width: 100%; }
+    .move-label { font-size: 12px; font-weight: 700; text-align: center; color: #fff; max-width: 100%; }
 
     @media (max-width: 720px) {
       .sprite { width:min(50%, 220px); height:min(50%, 220px); }
@@ -79,7 +103,8 @@
 
     /* Disabled state visuals */
     .move-btn:disabled, .forfeit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-  </style>
+  
+    .hp-hidden { display:none; }</style>
 </head>
 <body>
   <div class="phone phone-column">
@@ -92,12 +117,21 @@
       <section class="battle-topbar">
         <div class="trainer-side opponent">
           <div class="hp-card">
-            <!-- name/level removed by request -->
-            <div class="hp-bar-wrap" aria-label="Opponent HP">
+            <div class="hp-name-row">
+              <div class="left">
+                <span class="name" id="opponent-name">Opponent</span>
+                <span class="type-icons" id="opponent-types"></span>
+              </div>
+              <div class="cp" id="opponent-cp">CP 1000</div>
+            </div>
+              <div class="hp-bar-wrap" aria-label="Opponent HP">
               <div class="hp-bar" id="opponent-hp" style="--hp: 80%"></div>
             </div>
+            <div class="energy-bar-wrap" aria-label="Opponent Energy">
+              <div class="energy-bar" id="opponent-energy" style="--en: 0%"></div>
+            </div>
             <div class="hp-count">
-              <span><span id="opponent-hp-text">80/100</span></span>
+              <span><span id="opponent-hp-text" class="hp-hidden"></span></span>
               <span class="pokemon-orbs" aria-label="Opponent remaining Pokemon">
                 <span class="orb active"></span>
                 <span class="orb active"></span>
@@ -109,12 +143,21 @@
 
         <div class="trainer-side player">
           <div class="hp-card">
-            <!-- name/level removed by request -->
-            <div class="hp-bar-wrap" aria-label="Player HP">
+            <div class="hp-name-row">
+              <div class="left">
+                <span class="name" id="player-name">You</span>
+                <span class="type-icons" id="player-types"></span>
+              </div>
+              <div class="cp" id="player-cp">CP 1000</div>
+            </div>
+              <div class="hp-bar-wrap" aria-label="Player HP">
               <div class="hp-bar" id="player-hp" style="--hp: 100%"></div>
             </div>
+            <div class="energy-bar-wrap" aria-label="Player Energy">
+              <div class="energy-bar" id="player-energy" style="--en: 0%"></div>
+            </div>
             <div class="hp-count">
-              <span><span id="player-hp-text">100/100</span></span>
+              <span><span id="player-hp-text" class="hp-hidden"></span></span>
               <span class="pokemon-orbs" aria-label="Your remaining Pokemon">
                 <span class="orb active"></span>
                 <span class="orb active"></span>

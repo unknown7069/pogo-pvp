@@ -1,4 +1,4 @@
-// Battle logic extracted from battle.html
+// Battle logic with energy bar UI
 (function(){
   // ---------------------------
   // Helpers and DOM references
@@ -8,12 +8,17 @@
     const color = pct > 50 ? '#2ecc71' : pct > 20 ? '#f1c40f' : '#e74c3c';
     barEl.style.background = `linear-gradient(90deg, ${color}, ${color})`;
   }
+  function setEn(barEl, pct) {
+    barEl.style.setProperty('--en', pct + '%');
+  }
 
   const $ = (id) => document.getElementById(id);
   const oppBar = $('opponent-hp');
   const oppText = $('opponent-hp-text');
   const playerBar = $('player-hp');
   const playerText = $('player-hp-text');
+  const oppEnBar = $('opponent-energy');
+  const playerEnBar = $('player-energy');
 
   const moveButtons = Array.from(document.querySelectorAll('.move-btn'));
 
@@ -113,8 +118,11 @@
   const playerIdx = selectedTeam.length ? parseIndexFromName(selectedTeam[0]) : 0;
   const opponentIdx = Number(selectedBattle.index || 0);
 
+  function calcCp(idx){ return 200 + ((idx * 37) % 2500); }
   const player = makePokemon(playerIdx, selectedTeam.length ? selectedTeam[0] : 'Pokemon 1');
   const opponent = makePokemon(opponentIdx, selectedBattle.label || 'Opponent');
+  player.cp = calcCp(playerIdx);
+  opponent.cp = calcCp(opponentIdx);
 
   const state = {
     active: false,
@@ -131,10 +139,45 @@
   function updateHpUI() {
     const pPct = Math.max(0, Math.round((player.hp / player.maxHP) * 100));
     const oPct = Math.max(0, Math.round((opponent.hp / opponent.maxHP) * 100));
-    playerText.textContent = `${Math.max(0, Math.round(player.hp))}/${player.maxHP}`;
-    oppText.textContent = `${Math.max(0, Math.round(opponent.hp))}/${opponent.maxHP}`;
+    if (playerText) playerText.textContent = `${Math.max(0, Math.round(player.hp))}/${player.maxHP}`;
+    if (oppText) oppText.textContent = `${Math.max(0, Math.round(opponent.hp))}/${opponent.maxHP}`;
     setHp(playerBar, pPct);
     setHp(oppBar, oPct);
+  }
+
+  // Header: name, types, CP
+  const oppNameEl = document.getElementById('opponent-name');
+  const oppTypesEl = document.getElementById('opponent-types');
+  const oppCpEl = document.getElementById('opponent-cp');
+  const playerNameEl = document.getElementById('player-name');
+  const playerTypesEl = document.getElementById('player-types');
+  const playerCpEl = document.getElementById('player-cp');
+
+  function renderTypes(container, types) {
+    if (!container) return;
+    container.innerHTML = '';
+    (types || []).forEach(t => {
+      const dot = document.createElement('span');
+      dot.className = `type-dot t-${t}`;
+      dot.title = t.toUpperCase();
+      container.appendChild(dot);
+    });
+  }
+
+  function updateHeaderUI() {
+    if (oppNameEl) oppNameEl.textContent = opponent.name;
+    if (oppCpEl) oppCpEl.textContent = `CP ${opponent.cp}`;
+    renderTypes(oppTypesEl, opponent.types);
+    if (playerNameEl) playerNameEl.textContent = player.name;
+    if (playerCpEl) playerCpEl.textContent = `CP ${player.cp}`;
+    renderTypes(playerTypesEl, player.types);
+  }
+
+  function updateEnergyUI() {
+    const pPct = Math.max(0, Math.round(player.energy)); // energy is 0-100
+    const oPct = Math.max(0, Math.round(opponent.energy));
+    if (playerEnBar) setEn(playerEnBar, pPct);
+    if (oppEnBar) setEn(oppEnBar, oPct);
   }
 
   function labelForCharged(move){ return `${move.name} (${move.energy})`; }
@@ -177,10 +220,12 @@
 
   function grantEnergy(p, amount) {
     p.energy = clamp(p.energy + amount, 0, ENERGY_CAP);
+    updateEnergyUI();
   }
 
   function spendEnergy(p, cost) {
     p.energy = clamp(p.energy - cost, 0, ENERGY_CAP);
+    updateEnergyUI();
   }
 
   function fastTick(attacker, defender, side) {
@@ -266,6 +311,7 @@
     state.active = true;
     setControlsDisabled(false);
     updateHpUI();
+    updateEnergyUI();
     refreshMoveButtons();
     startFastLoop('player');
     startFastLoop('opponent');
@@ -279,9 +325,11 @@
     });
   });
 
-  // Initialize labels for player's three charge moves
+  // Initialize labels and bars
   refreshMoveButtons();
   updateHpUI();
+  updateHeaderUI();
+  updateEnergyUI();
 
   // 3-second countdown preventing interaction, then start battle
   function startCountdown() {
@@ -311,4 +359,3 @@
 
   startCountdown();
 })();
-
