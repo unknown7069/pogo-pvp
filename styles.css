@@ -125,3 +125,45 @@ body {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 .close-btn:active { transform: scale(0.97); }
+
+/* Team Select page */
+.team-select-page .team-header {
+  padding: 8px 12px;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fff;
+}
+
+.team-select-page .top-select {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+  background: #fff;
+}
+
+.team-select-page .slot {
+  height: 72px;
+  border: 2px dashed #cfcfcf;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  font-weight: 600;
+  background: #fafafa;
+}
+
+.team-select-page .slot.filled {
+  border-style: solid;
+  border-color: #8a8a8a;
+  color: #111;
+  background: #fff;
+}
+
+.team-select-page .pokemon-grid {
+  margin-top: var(--gap);
+}

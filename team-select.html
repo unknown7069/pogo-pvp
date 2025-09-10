@@ -5,50 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Team Select</title>
   <link rel="stylesheet" href="styles.css" />
-  <style>
-    /* Page-specific tweaks only; shared styles live in styles.css */
-    .team-header {
-      padding: 8px 12px;
-      font-size: 16px;
-      font-weight: 700;
-      text-align: center;
-      border-bottom: 1px solid #e5e5e5;
-      background: #fff;
-    }
-
-    /* Top fixed selected slots */
-    .top-select {
-      padding: 12px;
-      border-bottom: 1px solid #eee;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: var(--gap);
-      background: #fff;
-    }
-    .slot {
-      height: 72px;
-      border: 2px dashed #cfcfcf;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #666;
-      font-weight: 600;
-      background: #fafafa;
-    }
-    .slot.filled {
-      border-style: solid;
-      border-color: #8a8a8a;
-      color: #111;
-      background: #fff;
-    }
-
-    .pokemon-grid { margin-top: var(--gap); }
-    /* dragging state and button styles are shared */
-  </style>
 </head>
 <body>
-  <div class="phone phone-column">
+  <div class="phone phone-column team-select-page">
     <div class="team-header">team select</div>
     <div class="top-select">
       <div class="slot" data-slot="0">Empty</div>
@@ -64,19 +23,25 @@
   <script src="shared.js"></script>
   <script>
     (function(){
+      const MAX_TEAM = 3;
+
       const grid = document.getElementById('pokemonGrid');
       const slots = Array.from(document.querySelectorAll('.slot'));
       const cancelBtn = document.getElementById('cancelBtn');
       const doneBtn = document.getElementById('doneBtn');
-      const header = document.querySelector('.team-header');
-      const topSelect = document.querySelector('.top-select');
-      const actions = document.querySelector('.actions');
 
       // Build a sample list of Pokemon buttons
       const names = Array.from({length: 36}, (_, i) => `Pokemon ${i+1}`);
 
+      // Map for fast button lookups by name
+      const buttonsByName = new Map();
+      // Track previous selected set to diff UI updates
+      let prevSelected = new Set();
+
       function renderGrid() {
-        grid.innerHTML = '';
+        // Clear and batch-insert for minimal reflow
+        grid.textContent = '';
+        const frag = document.createDocumentFragment();
         names.forEach((name, idx) => {
           const btn = document.createElement('button');
           btn.className = 'pokemon-btn';
@@ -84,22 +49,24 @@
           btn.textContent = name;
           btn.dataset.name = name;
           btn.dataset.index = String(idx);
-          grid.appendChild(btn);
+          btn.setAttribute('aria-pressed', 'false');
+          buttonsByName.set(name, btn);
+          frag.appendChild(btn);
         });
+        grid.appendChild(frag);
       }
 
       let workingTeam = [];
-      let selecting = true;
 
       function loadExisting() {
         const saved = window.AppState && window.AppState.get('selectedTeam', []);
-        if (Array.isArray(saved)) workingTeam = saved.slice(0,3);
+        if (Array.isArray(saved)) workingTeam = saved.slice(0, MAX_TEAM);
         updateSlots();
         updateGridSelection();
       }
 
       function updateSlots() {
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < MAX_TEAM; i++) {
           const slot = slots[i];
           const name = workingTeam[i];
           if (name) {
@@ -113,26 +80,42 @@
       }
 
       function updateGridSelection() {
-        const selectedSet = new Set(workingTeam);
-        grid.querySelectorAll('.pokemon-btn').forEach(btn => {
-          const selected = selectedSet.has(btn.dataset.name);
-          btn.classList.toggle('selected', selected);
+        const selected = new Set(workingTeam);
+        // Remove selection for items no longer selected
+        prevSelected.forEach((name) => {
+          if (!selected.has(name)) {
+            const btn = buttonsByName.get(name);
+            if (btn) {
+              btn.classList.remove('selected');
+              btn.setAttribute('aria-pressed', 'false');
+            }
+          }
         });
+        // Add selection for new items
+        selected.forEach((name) => {
+          if (!prevSelected.has(name)) {
+            const btn = buttonsByName.get(name);
+            if (btn) {
+              btn.classList.add('selected');
+              btn.setAttribute('aria-pressed', 'true');
+            }
+          }
+        });
+        prevSelected = selected;
       }
 
-      // Clicking a pokemon adds/removes from working team (max 3)
+      // Clicking a pokemon adds/removes from working team (max MAX_TEAM)
       grid.addEventListener('click', (e) => {
         const btn = e.target.closest('.pokemon-btn');
         if (!btn) return;
-        if (!selecting) return; // view mode: ignore selection changes
         const name = btn.dataset.name;
         const i = workingTeam.indexOf(name);
         if (i !== -1) {
-          workingTeam.splice(i,1);
-        } else if (workingTeam.length < 3) {
+          workingTeam.splice(i, 1);
+        } else if (workingTeam.length < MAX_TEAM) {
           workingTeam.push(name);
         } else {
-          // Replace the last one if already 3? Keep simple: ignore
+          // Team is full; ignore extra selections
           return;
         }
         updateSlots();
@@ -146,7 +129,7 @@
       });
       doneBtn.addEventListener('click', () => {
         if (window.AppState && typeof window.AppState.set === 'function') {
-          window.AppState.set('selectedTeam', workingTeam.slice(0,3));
+          window.AppState.set('selectedTeam', workingTeam.slice(0, MAX_TEAM));
         }
         // Proceed to the new battle page after selection
         window.location.href = 'battle.html';
@@ -157,25 +140,9 @@
         window.UI.attachDragScroll(grid);
       }
 
-      function updateModeUI() {
-        if (topSelect) topSelect.style.display = selecting ? '' : 'none';
-        if (actions) actions.style.display = selecting ? '' : 'none';
-        if (header) {
-          if (selecting) {
-            header.style.display = '';
-            header.textContent = 'team select';
-          } else {
-            header.style.display = 'none';
-          }
-        }
-      }
-
-      // This page is dedicated to selecting a team
-      selecting = true;
-
+      // Initial render + hydrate from saved state
       renderGrid();
       loadExisting();
-      updateModeUI();
     })();
   </script>
 </body>
