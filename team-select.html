@@ -142,13 +142,13 @@
       // Bottom actions
       cancelBtn.addEventListener('click', () => {
         // Do not persist working changes; just return
-        window.location.href = 'battle.html';
+        window.location.href = 'rocket-select.html';
       });
       doneBtn.addEventListener('click', () => {
         if (window.AppState && typeof window.AppState.set === 'function') {
           window.AppState.set('selectedTeam', workingTeam.slice(0,3));
         }
-        window.location.href = 'battle.html';
+        window.location.href = 'rocket-select.html';
       });
 
       // Enable click-and-drag scrolling using shared helper
