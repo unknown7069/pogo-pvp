@@ -115,20 +115,38 @@
   const selectedTeam = (window.AppState && window.AppState.get('selectedTeam')) || [];
   const selectedBattle = (window.AppState && window.AppState.get('selectedBattle')) || { index: 7, label: 'Opponent' };
 
-  const playerIdx = selectedTeam.length ? parseIndexFromName(selectedTeam[0]) : 0;
   const opponentIdx = Number(selectedBattle.index || 0);
 
   function calcCp(idx){ return 200 + ((idx * 37) % 2500); }
-  const player = makePokemon(playerIdx, selectedTeam.length ? selectedTeam[0] : 'Pokemon 1');
-  const opponent = makePokemon(opponentIdx, selectedBattle.label || 'Opponent');
-  player.cp = calcCp(playerIdx);
-  opponent.cp = calcCp(opponentIdx);
+
+  // Build player's team (up to 3), instantiate each Pokémon once
+  const teamNames = Array.isArray(selectedTeam) && selectedTeam.length ? selectedTeam : ['Pokemon 1'];
+  const playerTeam = teamNames.map((name) => {
+    const idx = parseIndexFromName(name);
+    const poke = makePokemon(idx, name);
+    poke.cp = calcCp(idx);
+    return { name, idx, pokemon: poke, fainted: false };
+  });
+
+  let activePlayerIndex = 0;
+  let player = playerTeam[activePlayerIndex].pokemon;
+  // Build opponent's team (3 mons) based on selected stage index
+  const oppLabel = selectedBattle.label || 'Opponent';
+  const oppSeeds = [opponentIdx, opponentIdx + 1, opponentIdx + 2];
+  const opponentTeam = oppSeeds.map((seed, i) => {
+    const poke = makePokemon(seed, oppLabel + ' ' + (i + 1));
+    poke.cp = calcCp(seed);
+    return { idx: seed, pokemon: poke, fainted: false };
+  });
+
+  let activeOpponentIndex = 0;
+  let opponent = opponentTeam[activeOpponentIndex].pokemon;
 
   const state = {
     active: false,
     controlsDisabled: true,
     charging: { player: false, opponent: false },
-    timers: { playerFast: null, opponentFast: null, opponentAI: null },
+    timers: { playerFast: null, opponentFast: null, opponentAI: null, switchCountdown: null, switchAuto: null },
   };
 
   // ---------------------------
@@ -212,9 +230,13 @@
     target.hp = clamp(target.hp - amount, 0, target.maxHP);
     updateHpUI();
     if (target.hp <= 0) {
-      // End battle
-      if (target === opponent) showResult('win'); else showResult('lose');
-      endBattle('ko');
+      if (target === opponent) {
+        // Opponent faint: attempt to switch, otherwise you win
+        handleOpponentFaint();
+      } else {
+        // Player faint => prompt for next Pokémon
+        handlePlayerFaint();
+      }
     }
   }
 
@@ -355,6 +377,170 @@
         startBattle();
       }
     }, 1000);
+  }
+
+  // -----------
+  // Switch flow
+  // -----------
+  const switchOverlay = $('switchOverlay');
+  const switchOptionsEl = $('switchOptions');
+  const switchCountdownEl = $('switchCountdown');
+
+  function availableSwitches() {
+    const list = [];
+    for (let i = 0; i < playerTeam.length; i++) {
+      if (i === activePlayerIndex) continue;
+      const m = playerTeam[i];
+      if (!m.fainted) list.push({ index: i, name: m.name });
+    }
+    return list;
+  }
+
+  function stopAllLoops() {
+    stopFastLoop('player');
+    stopFastLoop('opponent');
+    clearInterval(state.timers.opponentAI);
+    state.timers.opponentAI = null;
+  }
+
+  function startAllLoops() {
+    startFastLoop('player');
+    startFastLoop('opponent');
+    startOpponentAI();
+  }
+
+  function performSwitch(nextIndex) {
+    // Close overlay and clear timers if any
+    if (switchOverlay) switchOverlay.classList.remove('show');
+    if (state.timers.switchCountdown) { clearInterval(state.timers.switchCountdown); state.timers.switchCountdown = null; }
+    if (state.timers.switchAuto) { clearTimeout(state.timers.switchAuto); state.timers.switchAuto = null; }
+    if (switchOptionsEl) switchOptionsEl.textContent = '';
+
+    activePlayerIndex = nextIndex;
+    player = playerTeam[activePlayerIndex].pokemon;
+    // Reset per-switch flags
+    state.charging.player = false;
+    // Update UI
+    updateHeaderUI();
+    updateHpUI();
+    updateEnergyUI();
+    refreshMoveButtons();
+
+    // Resume battle
+    state.active = true;
+    setControlsDisabled(false);
+    startAllLoops();
+  }
+
+  function openSwitchOverlay(options) {
+    if (!switchOverlay || !switchOptionsEl) return;
+    switchOptionsEl.textContent = '';
+    // Build buttons
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'switch-btn';
+      btn.textContent = opt.name;
+      btn.addEventListener('click', () => {
+        performSwitch(opt.index);
+      });
+      switchOptionsEl.appendChild(btn);
+    });
+    if (switchCountdownEl) switchCountdownEl.textContent = '5';
+    switchOverlay.classList.add('show');
+
+    // Countdown display
+    let n = 5;
+    state.timers.switchCountdown = setInterval(() => {
+      n -= 1;
+      if (switchCountdownEl) switchCountdownEl.textContent = String(Math.max(0, n));
+      if (n <= 0) {
+        clearInterval(state.timers.switchCountdown);
+        state.timers.switchCountdown = null;
+      }
+    }, 1000);
+    // Auto-pick first option after 5s
+    state.timers.switchAuto = setTimeout(() => {
+      performSwitch(options[0].index);
+    }, 5000);
+  }
+
+  function handlePlayerFaint() {
+    // Mark current as fainted
+    if (playerTeam[activePlayerIndex]) playerTeam[activePlayerIndex].fainted = true;
+    // Pause battle and lock controls
+    state.active = false;
+    setControlsDisabled(true);
+    stopAllLoops();
+    refreshMoveButtons();
+
+    const opts = availableSwitches();
+    if (opts.length === 0) {
+      // No Pokémon left
+      showResult('lose');
+      endBattle('team_ko');
+      return;
+    }
+    if (opts.length === 1) {
+      // Auto switch immediately
+      performSwitch(opts[0].index);
+      return;
+    }
+    // Show overlay with 5s auto-pick
+    openSwitchOverlay(opts);
+  }
+
+  function availableOppSwitches() {
+    const list = [];
+    for (let i = 0; i < opponentTeam.length; i++) {
+      if (i === activeOpponentIndex) continue;
+      const m = opponentTeam[i];
+      if (!m.fainted) list.push({ index: i });
+    }
+    return list;
+  }
+
+  function performOpponentSwitch(nextIndex) {
+    activeOpponentIndex = nextIndex;
+    opponent = opponentTeam[activeOpponentIndex].pokemon;
+    state.charging.opponent = false;
+    updateHeaderUI();
+    updateHpUI();
+    updateEnergyUI();
+    refreshMoveButtons();
+  }
+
+  function handleOpponentFaint() {
+    if (opponentTeam[activeOpponentIndex]) opponentTeam[activeOpponentIndex].fainted = true;
+    // Pause battle during switch / end evaluation
+    state.active = false;
+    setControlsDisabled(true);
+    stopAllLoops();
+
+    const opts = availableOppSwitches();
+    if (opts.length === 0) {
+      // No Pokémon left on opponent => win battle
+      showResult('win');
+      try {
+        if (window.AppState && typeof window.AppState.get === 'function' && typeof window.AppState.set === 'function') {
+          const sel = window.AppState.get('selectedBattle') || {};
+          const idx = Number(sel.index || 0);
+          const prev = Number(window.AppState.get('rocketUnlocked', 1)) || 1;
+          const next = Math.max(prev, idx + 2);
+          const capped = Math.min(next, 6);
+          if (capped !== prev) window.AppState.set('rocketUnlocked', capped);
+        }
+      } catch (_) { /* ignore storage errors */ }
+      endBattle('opponent_team_ko');
+      return;
+    }
+
+    // Switch to the first available opponent mon immediately
+    performOpponentSwitch(opts[0].index);
+    // Resume battle
+    state.active = true;
+    setControlsDisabled(false);
+    startAllLoops();
   }
 
   startCountdown();
