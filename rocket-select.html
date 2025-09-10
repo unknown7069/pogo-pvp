@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Rocket Select</title>
+  <title>Battle!</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
     /* Page-specific layout for the battle screen */
@@ -39,13 +39,21 @@
       cursor: grab; /* desktop drag hint */
     }
 
+    .battle-note { padding: 8px 12px; font-size: 14px; color: #555; background:#fff; border-bottom:1px solid #eee; }
+    .debug-toggle { float: right; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #666; }
+    .debug-toggle input { accent-color: #e51e2a; cursor: pointer; }
+
     .battle-btn {
       width: 100%;
-      display: block;
-      padding: 44px 20px; /* even taller */
+      display: flex;
+      align-items: stretch; /* let children span full height */
+      gap: 16px;
+      padding: 0 16px; /* no vertical padding so icon can fill */
+      height: 96px; /* larger button height */
+      text-align: left;
       font-size: 18px;
       border: 1px solid #d0d0d0;
-      border-radius: 10px;
+      border-radius: 12px;
       background: #ffffff;
       color: #111;
       cursor: pointer;
@@ -57,20 +65,126 @@
       transform: scale(0.996);
     }
 
+    .battle-btn .icon { width: 84px; height: 100%; flex: 0 0 auto; border-radius: 10px; object-fit: cover; background:#f0f0f0; border:1px solid #e0e0e0; }
+    .battle-btn .content { display:flex; flex-direction: column; justify-content: center; }
+    .battle-btn .title { font-weight: 800; font-size: 18px; display:block; }
+    .battle-btn .subtitle { display:block; margin-top: 4px; font-size: 13px; color: #666; font-weight: 600; }
+
+    .battle-btn.locked {
+      background: #f7f7f7;
+      color: #777;
+      border-color: #e0e0e0;
+      cursor: not-allowed;
+    }
+    .battle-btn.locked .icon { filter: grayscale(100%) brightness(0); }
+    .battle-btn.locked:active { transform: none; background:#f7f7f7; }
+
     /* Bottom bar uses shared .action-bar and .btn styles from styles.css */
+
+    /* ==============================
+       Team Rocket page theme (scoped)
+       ============================== */
+    .rocket-theme {
+      color: #e8e8ea;
+      background: radial-gradient(120% 120% at 100% 0%, #1a1a1d 0%, #111114 60%, #0b0b0d 100%);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .rocket-theme .battle-header {
+      position: relative;
+      padding: 14px 16px;
+      font-size: 20px;
+      font-weight: 800;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid #252526;
+      background: linear-gradient(90deg, rgba(229,30,42,0.12), rgba(229,30,42,0.04) 38%, rgba(0,0,0,0) 70%);
+      color: #ffffff;
+    }
+    .rocket-theme .battle-header::after {
+      content: 'R';
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-weight: 900;
+      font-size: 26px;
+      color: #e51e2a;
+      text-shadow: 0 0 10px rgba(229,30,42,0.35);
+      opacity: 0.95;
+      pointer-events: none;
+    }
+
+    .rocket-theme .battle-list {
+      background: linear-gradient(0deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02));
+    }
+
+    .rocket-theme .battle-note { padding: 10px 14px; font-size: 13px; color: #b8b8bf; background:#101013; border-bottom:1px solid #252526; }
+    .rocket-theme .debug-toggle { color: #9aa0aa; }
+
+    .rocket-theme .battle-btn {
+      border: 1px solid #2b2c30;
+      background: #141519;
+      color: #f4f4f7;
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    .rocket-theme .battle-btn:hover { background: #181a20; border-color: #3a3d45; }
+    .rocket-theme .battle-btn:active { background: #101116; }
+    .rocket-theme .battle-btn::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0; bottom: 0;
+      width: 4px;
+      background: linear-gradient(180deg, #e51e2a, #b30019);
+    }
+
+    .rocket-theme .battle-btn .icon { background:#0e0f13; border:1px solid #2a2c33; width: 96px; }
+    .rocket-theme .battle-btn .content { min-width: 0; }
+    .rocket-theme .battle-btn .title { color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rocket-theme .battle-btn .subtitle { color: #a6a9b1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .rocket-theme .battle-btn.locked { background: #0f1014; color: #7b7f87; border-color: #23252b; }
+    .rocket-theme .battle-btn.locked:active { background:#0f1014; }
+
+    /* Bottom bar theme overrides */
+    .rocket-theme .action-bar { background: #0f1014; border-top: 1px solid #25262b; }
+    .rocket-theme .btn-primary { background: #e51e2a; border-color: #e51e2a; color: #fff; }
+    .rocket-theme .btn-primary:active { transform: translateY(1px); }
+    .rocket-theme .btn-primary:hover { filter: brightness(1.05); }
+    .rocket-theme .btn-secondary { background: #1a1c20; color: #e5e7eb; border-color: #32343a; }
+    .rocket-theme .btn-secondary:hover { background: #20242a; }
   </style>
+  <!-- SVG filter to render only a black outline based on image alpha -->
+  <svg width="0" height="0" style="position:absolute; left:-9999px;">
+    <filter id="only-outline">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1" result="dilated"/>
+      <feComposite in="dilated" in2="SourceAlpha" operator="out" result="stroke"/>
+      <feColorMatrix in="stroke" type="matrix"
+        values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="alpha"/>
+      <feFlood flood-color="#000" result="black"/>
+      <feComposite in="black" in2="alpha" operator="in" result="blackStroke"/>
+      <feMerge>
+        <feMergeNode in="blackStroke"/>
+      </feMerge>
+    </filter>
+  </svg>
   </head>
 <body>
-  <div class="phone">
-    <div class="battle-header">rocket select</div>
-    <div class="battle-list">
-      <button class="battle-btn">Button 1</button>
-      <button class="battle-btn">Button 2</button>
-      <button class="battle-btn">Button 3</button>
-      <button class="battle-btn">Button 4</button>
-      <button class="battle-btn">Button 5</button>
-      <button class="battle-btn">Button 6</button>
+  <div class="phone rocket-theme">
+    <div class="battle-header">Battle!</div>
+    <div class="battle-note">
+      <span>Defeat each member to unlock the next.</span>
+      <label class="debug-toggle" title="Debug: unlock all stages">
+        <input type="checkbox" id="unlockAllToggle" />
+        Unlock all
+      </label>
     </div>
+    <div class="battle-list" id="rocketList"></div>
     <div class="battle-actions action-bar two">
       <button class="btn btn-secondary" id="itemsBtn" type="button">Items</button>
       <button class="btn btn-primary" id="pokemonBtn" type="button">Pokemon</button>
@@ -80,26 +194,107 @@
   <script>
     // Enable click-and-drag scrolling using shared helper
     (function() {
-      const list = document.querySelector('.battle-list');
+      const STAGES = [
+        { id:'grunt-male', name:'Rocket Grunt', quote:"Let's do this!", icon:'https://archives.bulbagarden.net/media/upload/thumb/8/80/VSTeam_GO_Rocket_Grunt_M.png/120px-VSTeam_GO_Rocket_Grunt_M.png'},
+        { id:'grunt-female', name:'Rocket Grunt', quote:"You're gonna be sorry!", icon:'https://archives.bulbagarden.net/media/upload/thumb/6/62/VSTeam_GO_Rocket_Grunt_F.png/120px-VSTeam_GO_Rocket_Grunt_F.png'},
+        { id:'cliff', name:'Cliff', quote:"Don't waste my time.", icon:'https://archives.bulbagarden.net/media/upload/thumb/d/d9/VSCliff.png/120px-VSCliff.png' },
+        { id:'sierra', name:'Sierra', quote:"You'll regret this.", icon:'https://archives.bulbagarden.net/media/upload/thumb/8/82/VSSierra.png/120px-VSSierra.png' },
+        { id:'arlo', name:'Arlo', quote:"I'll show you true power.", icon:'https://archives.bulbagarden.net/media/upload/thumb/5/5c/VSArlo.png/120px-VSArlo.png' },
+        { id:'giovanni', name:'Giovanni', quote:"So, you think you can challenge me?", icon:'https://archives.bulbagarden.net/media/upload/f/f3/VSGiovanni_GO.png' },
+      ];
+
+      const PROGRESS_KEY = 'rocketUnlocked';
+      const list = document.getElementById('rocketList');
+      const unlockToggle = document.getElementById('unlockAllToggle');
       if (!list) return;
       if (window.UI && typeof window.UI.attachDragScroll === 'function') {
         window.UI.attachDragScroll(list);
       }
 
+      function getUnlockedCount() {
+        const n = (window.AppState && Number(window.AppState.get(PROGRESS_KEY, 1))) || 1;
+        return Math.max(1, Math.min(n, STAGES.length));
+      }
+
+      function setUnlockedCount(n) {
+        if (window.AppState && typeof window.AppState.set === 'function') {
+          window.AppState.set(PROGRESS_KEY, Math.max(1, Math.min(Number(n||1), STAGES.length)));
+        }
+      }
+
+      function render() {
+        list.textContent = '';
+        const unlocked = getUnlockedCount();
+        const frag = document.createDocumentFragment();
+        STAGES.forEach((stage, idx) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'battle-btn';
+          btn.dataset.index = String(idx);
+          btn.dataset.id = stage.id;
+          const locked = idx >= unlocked;
+          const titleText = locked ? '???' : stage.name;
+          const iconSrc = stage.icon || '';
+          const img = iconSrc ? `<img class="icon" alt="${titleText}" src="${iconSrc}" referrerpolicy="no-referrer" loading="lazy">` : '';
+          btn.innerHTML = `${img}` +
+                          `<span class="content">` +
+                            `<span class="title">${titleText}</span>` +
+                            `${locked ? '' : `<span class="subtitle">${stage.quote || ''}</span>`}` +
+                          `</span>`;
+          if (locked) {
+            btn.classList.add('locked');
+            btn.disabled = true; // prevent focus/interaction
+            btn.setAttribute('aria-disabled', 'true');
+          }
+          frag.appendChild(btn);
+        });
+        list.appendChild(frag);
+      }
+
+      function updateUnlockToggleUI() {
+        if (!unlockToggle) return;
+        const all = getUnlockedCount() >= STAGES.length;
+        unlockToggle.checked = all;
+      }
+
+      if (unlockToggle) {
+        unlockToggle.addEventListener('change', () => {
+          const all = unlockToggle.checked;
+          if (all) {
+            // Save previous progression to restore later
+            if (window.AppState && typeof window.AppState.set === 'function') {
+              window.AppState.set('rocketUnlockedPrev', getUnlockedCount());
+            }
+            setUnlockedCount(STAGES.length);
+          } else {
+            const prev = (window.AppState && Number(window.AppState.get('rocketUnlockedPrev', 1))) || 1;
+            if (window.AppState && typeof window.AppState.remove === 'function') {
+              window.AppState.remove('rocketUnlockedPrev');
+            }
+            setUnlockedCount(prev);
+          }
+          render();
+          updateUnlockToggleUI();
+        });
+      }
+
+      render();
+      updateUnlockToggleUI();
+
       // Navigate to team select on button click, and store selection
       list.addEventListener('click', (e) => {
         const btn = e.target.closest('.battle-btn');
-        if (!btn) return;
-        const buttons = Array.from(list.querySelectorAll('.battle-btn'));
-        const index = buttons.indexOf(btn);
-        const label = btn.textContent.trim();
+        if (!btn || btn.classList.contains('locked')) return;
+        const index = Number(btn.dataset.index || 0);
+        const label = btn.querySelector('.title')?.textContent?.trim() || 'Opponent';
         if (window.AppState && typeof window.AppState.set === 'function') {
           window.AppState.set('selectedBattle', { index, label });
+          window.AppState.set('selectedStageId', btn.dataset.id);
           window.AppState.set('teamSelectMode', true); // entering team select mode from battle
         }
         window.location.href = 'team-select.html';
       });
-
+    
       // Bottom bar navigation
       const itemsBtn = document.getElementById('itemsBtn');
       const pokemonBtn = document.getElementById('pokemonBtn');

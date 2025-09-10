@@ -3,12 +3,67 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Phone Display</title>
+  <title>Start</title>
   <link rel="stylesheet" href="styles.css" />
-</head>
+  <style>
+    /* Start screen background inside the phone frame */
+    .start-bg {
+      position: relative;
+      background: url('https://d2duuy9yo5pldo.cloudfront.net/niantic/d19e1964-5c79-47d4-a0dd-8a8f7670a521.png') center / cover no-repeat;
+      user-select: none;
+      -webkit-user-select: none;
+      cursor: pointer;
+    }
+    /* Centered login message overlay */
+    .login-overlay {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: transparent; /* transparent background per request */
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-weight: 800;
+      font-family: sans-serif;
+      letter-spacing: 0.02em;
+      /* fade-in animation */
+      opacity: 0;
+      transition: opacity 200ms ease;
+      /* subtle glow to remain legible over image without a box */
+      text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+    }
+    .login-overlay.show { opacity: 1; }
+  </style>
+  </head>
 <body>
-  <a href="rocket-select.html" style="text-decoration:none;color:inherit;">
-    <div class="phone">start</div>
-  </a>
+  <div id="startPhone" class="phone start-bg" role="button" tabindex="0" aria-label="Start">
+    <div id="loginOverlay" class="login-overlay" aria-live="assertive">Login Successful!</div>
+  </div>
+
+  <script>
+    (function() {
+      const phone = document.getElementById('startPhone');
+      const overlay = document.getElementById('loginOverlay');
+      let started = false;
+
+      function begin() {
+        if (started) return;
+        started = true;
+        if (overlay) overlay.classList.add('show');
+        setTimeout(() => {
+          window.location.href = 'rocket-select.html';
+        }, 500);
+      }
+
+      phone.addEventListener('click', begin);
+      phone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          begin();
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
