@@ -14,8 +14,10 @@
 
   const $ = (id) => document.getElementById(id);
   const oppBar = $('opponent-hp');
+  const oppRecentBar = $('opponent-hp-recent');
   const oppText = $('opponent-hp-text');
   const playerBar = $('player-hp');
+  const playerRecentBar = $('player-hp-recent');
   const playerText = $('player-hp-text');
   const oppEnBar = $('opponent-energy');
   const playerEnBar = $('player-energy');
@@ -352,13 +354,63 @@
   // ---------------------------
   function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
 
+  // Track previous HP percentages for recent-damage overlay
+  let prevPlayerHpPct = null;
+  let prevOpponentHpPct = null;
+  const RECENT_DAMAGE_DELAY_MS = 250; // delay before white overlay trails to current
+  const recentDamageTimers = { player: null, opponent: null };
+
   function updateHpUI() {
     const pPct = Math.max(0, Math.round((player.hp / player.maxHP) * 100));
     const oPct = Math.max(0, Math.round((opponent.hp / opponent.maxHP) * 100));
     if (playerText) playerText.textContent = `${Math.max(0, Math.round(player.hp))}/${player.maxHP}`;
     if (oppText) oppText.textContent = `${Math.max(0, Math.round(opponent.hp))}/${opponent.maxHP}`;
+
+    // Initialize previous values on first run
+    if (prevPlayerHpPct == null) prevPlayerHpPct = pPct;
+    if (prevOpponentHpPct == null) prevOpponentHpPct = oPct;
+
+    // Apply recent-damage overlay: set to previous %, then shrink to current %
+    if (playerRecentBar) {
+      if (pPct < prevPlayerHpPct) {
+        playerRecentBar.style.setProperty('--hp-recent', prevPlayerHpPct + '%');
+        if (recentDamageTimers.player) { clearTimeout(recentDamageTimers.player); recentDamageTimers.player = null; }
+        // Shrink after a short delay for a more pronounced trailing effect
+        requestAnimationFrame(() => {
+          recentDamageTimers.player = setTimeout(() => {
+            playerRecentBar.style.setProperty('--hp-recent', pPct + '%');
+            recentDamageTimers.player = null;
+          }, RECENT_DAMAGE_DELAY_MS);
+        });
+      } else {
+        // On heal or unchanged, snap recent to current and clear any pending timer
+        if (recentDamageTimers.player) { clearTimeout(recentDamageTimers.player); recentDamageTimers.player = null; }
+        playerRecentBar.style.setProperty('--hp-recent', pPct + '%');
+      }
+    }
+    if (oppRecentBar) {
+      if (oPct < prevOpponentHpPct) {
+        oppRecentBar.style.setProperty('--hp-recent', prevOpponentHpPct + '%');
+        if (recentDamageTimers.opponent) { clearTimeout(recentDamageTimers.opponent); recentDamageTimers.opponent = null; }
+        requestAnimationFrame(() => {
+          recentDamageTimers.opponent = setTimeout(() => {
+            oppRecentBar.style.setProperty('--hp-recent', oPct + '%');
+            recentDamageTimers.opponent = null;
+          }, RECENT_DAMAGE_DELAY_MS);
+        });
+      } else {
+        if (recentDamageTimers.opponent) { clearTimeout(recentDamageTimers.opponent); recentDamageTimers.opponent = null; }
+        oppRecentBar.style.setProperty('--hp-recent', oPct + '%');
+      }
+    }
+
+    // Update actual HP bars
     setHp(playerBar, pPct);
     setHp(oppBar, oPct);
+
+    // Save current as previous for next update
+    prevPlayerHpPct = pPct;
+    prevOpponentHpPct = oPct;
   }
 
   // Header: name, types, CP
@@ -370,6 +422,8 @@
   const playerCpEl = document.getElementById('player-cp');
   const oppSpriteEl = document.querySelector('.sprite.opponent');
   const playerSpriteEl = document.querySelector('.sprite.player');
+  const oppEffectSlot = document.getElementById('opponent-effect-slot');
+  const playerEffectSlot = document.getElementById('player-effect-slot');
 
   function renderTypes(container, types) {
     if (!container) return;
@@ -389,8 +443,8 @@
     if (playerNameEl) playerNameEl.textContent = player.name;
     if (playerCpEl) playerCpEl.textContent = `CP ${player.cp}`;
     renderTypes(playerTypesEl, player.types);
-    if (oppSpriteEl) oppSpriteEl.textContent = (opponent.name || 'OPP').slice(0,4).toUpperCase();
-    if (playerSpriteEl) playerSpriteEl.textContent = (player.name || 'YOU').slice(0,4).toUpperCase();
+    if (oppSpriteEl) oppSpriteEl.textContent = '';
+    if (playerSpriteEl) playerSpriteEl.textContent = '';
   }
 
   function updateEnergyUI() {
@@ -398,6 +452,21 @@
     const oPct = Math.max(0, Math.round(opponent.energy));
     if (playerEnBar) setEn(playerEnBar, pPct);
     if (oppEnBar) setEn(oppEnBar, oPct);
+  }
+
+  // Flash floating text above sprites
+  function flashEffectText(side, text) {
+    const host = side === 'player' ? playerSpriteEl : oppSpriteEl;
+    if (!host) return;
+    const el = document.createElement('div');
+    el.className = 'effect-text';
+    el.textContent = String(text || '');
+    host.appendChild(el);
+    // Force reflow then trigger fade to ensure transition
+    requestAnimationFrame(() => { void el.offsetWidth; el.classList.add('fade'); });
+    setTimeout(() => {
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    }, 500);
   }
 
   function labelForCharged(move){ return `${move.name} (${move.energy})`; }
@@ -535,16 +604,25 @@
     let pEnergyDelta = 0;
     let oEnergyDelta = 0;
 
+    let playerSE = false;
+    let opponentSE = false;
+    let playerNVE = false; // not very effective
+    let opponentNVE = false;
+
     if (playerAction) {
       if (playerAction.kind === 'charged') {
         const base = Number(playerAction.move.dmg || 0);
         const mult = typeMultiplier(playerAction.move.type, opponent.types);
+        playerSE = mult > 1;
+        playerNVE = mult < 1;
         const stab = stabMultiplier(playerAction.move.type, player.types);
         dmgToOpponent += Math.max(0, Math.round(base * mult * stab));
         pEnergyDelta -= Number(playerAction.move.energy || 0);
       } else {
         const base = Number(playerAction.move.dmg || 0);
         const mult = typeMultiplier(playerAction.move.type, opponent.types);
+        playerSE = mult > 1;
+        playerNVE = mult < 1;
         const stab = stabMultiplier(playerAction.move.type, player.types);
         dmgToOpponent += Math.max(0, Math.round(base * mult * stab));
         pEnergyDelta += Number(playerAction.move.energyGain || 0);
@@ -554,12 +632,16 @@
       if (opponentAction.kind === 'charged') {
         const base = Number(opponentAction.move.dmg || 0);
         const mult = typeMultiplier(opponentAction.move.type, player.types);
+        opponentSE = mult > 1;
+        opponentNVE = mult < 1;
         const stab = stabMultiplier(opponentAction.move.type, opponent.types);
         dmgToPlayer += Math.max(0, Math.round(base * mult * stab));
         oEnergyDelta -= Number(opponentAction.move.energy || 0);
       } else {
         const base = Number(opponentAction.move.dmg || 0);
         const mult = typeMultiplier(opponentAction.move.type, player.types);
+        opponentSE = mult > 1;
+        opponentNVE = mult < 1;
         const stab = stabMultiplier(opponentAction.move.type, opponent.types);
         dmgToPlayer += Math.max(0, Math.round(base * mult * stab));
         oEnergyDelta += Number(opponentAction.move.energyGain || 0);
@@ -599,6 +681,21 @@
       updateHpUI();
       updateEnergyUI();
       persistBattleState();
+      // Show effectiveness text immediately when applicable
+      if (playerAction && dmgToOpponent > 0) {
+        if (playerSE) {
+          flashEffectText('opponent', 'Super Effective!');
+        } else if (playerNVE) {
+          flashEffectText('opponent', 'Not very effective...');
+        }
+      }
+      if (opponentAction && dmgToPlayer > 0) {
+        if (opponentSE) {
+          flashEffectText('player', 'Super Effective!');
+        } else if (opponentNVE) {
+          flashEffectText('player', 'Not very effective...');
+        }
+      }
     }
 
     // Outcome checks (tie allowed)
@@ -750,6 +847,10 @@
     player = playerTeam[activePlayerIndex].pokemon;
     // Reset per-switch flags
     state.charging.player = false;
+    // Reset recent damage overlay baseline for player to avoid cross-Pokémon artifacts
+    prevPlayerHpPct = Math.max(0, Math.round((player.hp / player.maxHP) * 100));
+    if (recentDamageTimers.player) { clearTimeout(recentDamageTimers.player); recentDamageTimers.player = null; }
+    if (playerRecentBar) playerRecentBar.style.setProperty('--hp-recent', prevPlayerHpPct + '%');
     // Update UI
     updateHeaderUI();
     updateHpUI();
@@ -836,6 +937,10 @@
     activeOpponentIndex = nextIndex;
     opponent = opponentTeam[activeOpponentIndex].pokemon;
     state.charging.opponent = false;
+    // Reset recent damage overlay baseline for opponent
+    prevOpponentHpPct = Math.max(0, Math.round((opponent.hp / opponent.maxHP) * 100));
+    if (recentDamageTimers.opponent) { clearTimeout(recentDamageTimers.opponent); recentDamageTimers.opponent = null; }
+    if (oppRecentBar) oppRecentBar.style.setProperty('--hp-recent', prevOpponentHpPct + '%');
     updateHeaderUI();
     updateHpUI();
     updateEnergyUI();

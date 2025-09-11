@@ -50,9 +50,13 @@
     .t-dark{ background:#705746; } .t-steel{ background:#b7b7ce; }
     .t-fairy{ background:#d685ad; }
     .hp-bar-wrap { position:relative; height:10px; background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.6); border-radius:6px; overflow:hidden; }
+    /* White overlay to show most recent damage (previous HP) */
+    .hp-recent { position:absolute; inset:0 auto 0 0; width:var(--hp-recent, 0%); background: rgba(255,255,255,0.9); transition: width 600ms ease; }
     .hp-bar { position:absolute; inset:0 auto 0 0; width:var(--hp,100%); background:linear-gradient(90deg,#2ecc71,#27ae60); transition: width 200ms ease, background 150ms; }
+    /* Slot to anchor hit text near HP bar */
+    .effect-slot { position: relative; height: 0; }
     /* Energy bar below HP */
-    .energy-bar-wrap { position:relative; height:8px; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.6); border-radius:6px; overflow:hidden; margin-top:4px; }
+    .energy-bar-wrap { position:relative; height:6px; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.6); border-radius:6px; overflow:hidden; margin-top:4px; }
     .energy-bar { position:absolute; inset:0 auto 0 0; width:var(--en,0%); background:linear-gradient(90deg,#00b4ff,#007aff); transition: width 200ms ease; }
     .hp-count { font-size:12px; opacity:0.8; margin-top:4px; display:flex; justify-content:space-between; align-items:center; }
     .pokemon-orbs { display:flex; gap:4px; margin-left:6px; }
@@ -60,14 +64,21 @@
     .pokemon-orbs .orb.active { background:#4caf50; }
 
     /* Sprites and platforms in the middle stage */
-    .sprite { position:absolute; width:min(42%, 240px); height:min(42%, 240px); display:flex; align-items:center; justify-content:center; font-weight:800; color:#222; border-radius:50%;
-      background: radial-gradient(circle at 35% 35%, #ffffff, #d9ecff); border: 4px solid rgba(255,255,255,0.85); box-shadow: 0 10px 28px rgba(0,0,0,0.15); }
+    .sprite { position:absolute; width:min(42%, 240px); height:min(42%, 240px); display:flex; align-items:center; justify-content:center; border-radius:50%; background: transparent; border: none; box-shadow: none; z-index: 1; overflow: visible; }
     .sprite.opponent { right: 6%; top: 6%; transform: scaleX(-1); }
     .sprite.player { left: 6%; bottom: 10%; }
 
-    .platform { position:absolute; width:38%; height:20%; background: radial-gradient(ellipse at center, rgba(0,0,0,0.22), rgba(0,0,0,0)); pointer-events:none; }
+    .platform { position:absolute; width:38%; height:20%; background: radial-gradient(ellipse at center, rgba(0,0,0,0.22), rgba(0,0,0,0)); pointer-events:none; z-index: 0; }
     .platform.opponent { right: 3%; top: 22%; }
     .platform.player { left: 3%; bottom: 12%; }
+
+    /* Floating hit text (e.g., Super Effective!) */
+    .effect-text { position:absolute; top:-18px; left:50%; transform: translateX(-50%) translateY(0); background: transparent; color:#fff; font-weight:800; font-size:12px; padding: 2px 6px; border-radius: 6px; opacity: 1; pointer-events:none; transition: opacity 600ms ease, transform 600ms ease; will-change: opacity, transform; white-space: nowrap; z-index: 2; min-width: 180px; text-align: center; }
+    .effect-text.fade { opacity: 0.4; transform: translateX(-50%) translateY(-10px); }
+    /* Keep opponent text upright despite parent mirror */
+    .sprite.opponent .effect-text { transform: translateX(-50%) translateY(0) scaleX(-1); }
+    .sprite.opponent .effect-text.fade { transform: translateX(-50%) translateY(-10px) scaleX(-1); }
+    .effect-text.fade { opacity: 0.4; }
 
     /* Bottom action area with three circular moves */
     .battle-actions { background: transparent; border-top:none; padding:12px 16px 16px; display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; align-items: start; }
@@ -140,8 +151,10 @@
               <div class="cp" id="opponent-cp">CP 1000</div>
             </div>
               <div class="hp-bar-wrap" aria-label="Opponent HP">
+              <div class="hp-recent" id="opponent-hp-recent" style="--hp-recent: 80%"></div>
               <div class="hp-bar" id="opponent-hp" style="--hp: 80%"></div>
             </div>
+            <div class="effect-slot" id="opponent-effect-slot"></div>
             <div class="energy-bar-wrap" aria-label="Opponent Energy">
               <div class="energy-bar" id="opponent-energy" style="--en: 0%"></div>
             </div>
@@ -166,8 +179,10 @@
               <div class="cp" id="player-cp">CP 1000</div>
             </div>
               <div class="hp-bar-wrap" aria-label="Player HP">
+              <div class="hp-recent" id="player-hp-recent" style="--hp-recent: 100%"></div>
               <div class="hp-bar" id="player-hp" style="--hp: 100%"></div>
             </div>
+            <div class="effect-slot" id="player-effect-slot"></div>
             <div class="energy-bar-wrap" aria-label="Player Energy">
               <div class="energy-bar" id="player-energy" style="--en: 0%"></div>
             </div>
@@ -186,9 +201,9 @@
       <!-- Stage area -->
       <section class="battle-stage" role="img" aria-label="Battle stage">
         <div class="platform opponent"></div>
-        <div class="sprite opponent" aria-label="Opponent Pokemon">OPP</div>
+        <div class="sprite opponent" aria-label="Opponent Pokemon"></div>
         <div class="platform player"></div>
-        <div class="sprite player" aria-label="Your Pokemon">YOU</div>
+        <div class="sprite player" aria-label="Your Pokemon"></div>
       </section>
 
       <!-- Actions -->
