@@ -59,6 +59,68 @@
   const CHARGED_BY_ID = PD.CHARGED_MOVES_BY_ID || {};
   const ALL_SPECIES = Array.isArray(PD.all) ? PD.all : [];
 
+  // ---------------------------
+  // Type effectiveness (Pokemon GO-style)
+  // ---------------------------
+  // Uses 1.6x for super-effective and 0.625x for not-very-effective.
+  // No neutral cancellation: if one type is weak and another resists, we favor 1.6x.
+  const NO_NEUTRAL_CANCELLATION = true;
+  const SE_MULT = 1.6;
+  const NV_MULT = 0.625;
+  const IMM_MULT = NV_MULT * NV_MULT; // GO treats immunities as extra-strong resists (~0.390625)
+
+  // Attack type -> lists of defending types for effects
+  const TYPE_CHART = Object.freeze({
+    normal:   { weak: ['rock', 'steel'], immune: ['ghost'] },
+    fire:     { strong: ['grass','ice','bug','steel'], weak: ['fire','water','rock','dragon'] },
+    water:    { strong: ['fire','ground','rock'], weak: ['water','grass','dragon'] },
+    electric: { strong: ['water','flying'], weak: ['electric','grass','dragon'], immune: ['ground'] },
+    grass:    { strong: ['water','ground','rock'], weak: ['fire','grass','poison','flying','bug','dragon','steel'] },
+    ice:      { strong: ['grass','ground','flying','dragon'], weak: ['fire','water','ice','steel'] },
+    fighting: { strong: ['normal','rock','steel','ice','dark'], weak: ['flying','poison','psychic','bug','fairy'], immune: ['ghost'] },
+    poison:   { strong: ['grass','fairy'], weak: ['poison','ground','rock','ghost'], immune: ['steel'] },
+    ground:   { strong: ['fire','electric','poison','rock','steel'], weak: ['grass','bug'], immune: ['flying'] },
+    flying:   { strong: ['grass','fighting','bug'], weak: ['electric','rock','steel'] },
+    psychic:  { strong: ['fighting','poison'], weak: ['psychic','steel'], immune: ['dark'] },
+    bug:      { strong: ['grass','psychic','dark'], weak: ['fire','fighting','poison','flying','ghost','steel','fairy'] },
+    rock:     { strong: ['fire','ice','flying','bug'], weak: ['fighting','ground','steel'] },
+    ghost:    { strong: ['ghost','psychic'], weak: ['dark'], immune: ['normal'] },
+    dragon:   { strong: ['dragon'], weak: ['steel'], immune: ['fairy'] },
+    dark:     { strong: ['ghost','psychic'], weak: ['fighting','dark','fairy'] },
+    steel:    { strong: ['rock','ice','fairy'], weak: ['fire','water','electric','steel'] },
+    fairy:    { strong: ['fighting','dragon','dark'], weak: ['fire','poison','steel'] },
+  });
+
+  function typeMultiplier(attackType, defendTypes) {
+    const atk = String(attackType || '').toLowerCase();
+    const defs = Array.isArray(defendTypes) ? defendTypes : [];
+    const chart = TYPE_CHART[atk];
+    if (!atk || !chart || defs.length === 0) return 1;
+
+    let seCount = 0;   // number of super-effective matches
+    let nvCount = 0;   // number of not-very-effective matches
+    let immCount = 0;  // number of immunity matches
+
+    for (const dtRaw of defs) {
+      const dt = String(dtRaw || '').toLowerCase();
+      if (chart.strong && chart.strong.includes(dt)) seCount += 1;
+      else if (chart.weak && chart.weak.includes(dt)) nvCount += 1;
+      else if (chart.immune && chart.immune.includes(dt)) immCount += 1;
+    }
+
+    if (NO_NEUTRAL_CANCELLATION && (seCount > 0) && (nvCount > 0 || immCount > 0)) {
+      // Favor super effective when there is a mix of weakness and resistance
+      return SE_MULT;
+    }
+
+    // Otherwise apply multiplicative stacking like GO
+    let mult = 1;
+    if (seCount > 0) mult *= Math.pow(SE_MULT, seCount);
+    if (nvCount > 0) mult *= Math.pow(NV_MULT, nvCount);
+    if (immCount > 0) mult *= Math.pow(IMM_MULT, immCount);
+    return mult;
+  }
+
   function fastFromId(id) {
     const m = FAST_BY_ID && FAST_BY_ID[id];
     if (!m) return { name: 'Fast', dmg: 5, energyGain: 8, rateMs: 1000, type: 'normal' };
@@ -473,19 +535,27 @@
 
     if (playerAction) {
       if (playerAction.kind === 'charged') {
-        dmgToOpponent += Number(playerAction.move.dmg || 0);
+        const base = Number(playerAction.move.dmg || 0);
+        const mult = typeMultiplier(playerAction.move.type, opponent.types);
+        dmgToOpponent += Math.max(0, Math.round(base * mult));
         pEnergyDelta -= Number(playerAction.move.energy || 0);
       } else {
-        dmgToOpponent += Number(playerAction.move.dmg || 0);
+        const base = Number(playerAction.move.dmg || 0);
+        const mult = typeMultiplier(playerAction.move.type, opponent.types);
+        dmgToOpponent += Math.max(0, Math.round(base * mult));
         pEnergyDelta += Number(playerAction.move.energyGain || 0);
       }
     }
     if (opponentAction) {
       if (opponentAction.kind === 'charged') {
-        dmgToPlayer += Number(opponentAction.move.dmg || 0);
+        const base = Number(opponentAction.move.dmg || 0);
+        const mult = typeMultiplier(opponentAction.move.type, player.types);
+        dmgToPlayer += Math.max(0, Math.round(base * mult));
         oEnergyDelta -= Number(opponentAction.move.energy || 0);
       } else {
-        dmgToPlayer += Number(opponentAction.move.dmg || 0);
+        const base = Number(opponentAction.move.dmg || 0);
+        const mult = typeMultiplier(opponentAction.move.type, player.types);
+        dmgToPlayer += Math.max(0, Math.round(base * mult));
         oEnergyDelta += Number(opponentAction.move.energyGain || 0);
       }
     }
