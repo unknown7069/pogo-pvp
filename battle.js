@@ -68,6 +68,7 @@
   const SE_MULT = 1.6;
   const NV_MULT = 0.625;
   const IMM_MULT = NV_MULT * NV_MULT; // GO treats immunities as extra-strong resists (~0.390625)
+  const STAB_MULT = 1.2; // Same-Type Attack Bonus in GO
 
   // Attack type -> lists of defending types for effects
   const TYPE_CHART = Object.freeze({
@@ -119,6 +120,13 @@
     if (nvCount > 0) mult *= Math.pow(NV_MULT, nvCount);
     if (immCount > 0) mult *= Math.pow(IMM_MULT, immCount);
     return mult;
+  }
+
+  function stabMultiplier(moveType, attackerTypes) {
+    const m = String(moveType || '').toLowerCase();
+    const at = Array.isArray(attackerTypes) ? attackerTypes.map(t => String(t||'').toLowerCase()) : [];
+    if (!m || at.length === 0) return 1;
+    return at.includes(m) ? STAB_MULT : 1;
   }
 
   function fastFromId(id) {
@@ -537,12 +545,14 @@
       if (playerAction.kind === 'charged') {
         const base = Number(playerAction.move.dmg || 0);
         const mult = typeMultiplier(playerAction.move.type, opponent.types);
-        dmgToOpponent += Math.max(0, Math.round(base * mult));
+        const stab = stabMultiplier(playerAction.move.type, player.types);
+        dmgToOpponent += Math.max(0, Math.round(base * mult * stab));
         pEnergyDelta -= Number(playerAction.move.energy || 0);
       } else {
         const base = Number(playerAction.move.dmg || 0);
         const mult = typeMultiplier(playerAction.move.type, opponent.types);
-        dmgToOpponent += Math.max(0, Math.round(base * mult));
+        const stab = stabMultiplier(playerAction.move.type, player.types);
+        dmgToOpponent += Math.max(0, Math.round(base * mult * stab));
         pEnergyDelta += Number(playerAction.move.energyGain || 0);
       }
     }
@@ -550,12 +560,14 @@
       if (opponentAction.kind === 'charged') {
         const base = Number(opponentAction.move.dmg || 0);
         const mult = typeMultiplier(opponentAction.move.type, player.types);
-        dmgToPlayer += Math.max(0, Math.round(base * mult));
+        const stab = stabMultiplier(opponentAction.move.type, opponent.types);
+        dmgToPlayer += Math.max(0, Math.round(base * mult * stab));
         oEnergyDelta -= Number(opponentAction.move.energy || 0);
       } else {
         const base = Number(opponentAction.move.dmg || 0);
         const mult = typeMultiplier(opponentAction.move.type, player.types);
-        dmgToPlayer += Math.max(0, Math.round(base * mult));
+        const stab = stabMultiplier(opponentAction.move.type, opponent.types);
+        dmgToPlayer += Math.max(0, Math.round(base * mult * stab));
         oEnergyDelta += Number(opponentAction.move.energyGain || 0);
       }
     }
