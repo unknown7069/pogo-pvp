@@ -80,6 +80,26 @@
     .sprite.opponent .effect-text.fade { transform: translateX(-50%) translateY(-10px) scaleX(-1); }
     .effect-text.fade { opacity: 0.4; }
 
+    /* Sprite <img> sizing */
+    .sprite img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: auto; pointer-events: none; }
+    /* Counteract container flip for opponent so front sprite isn't mirrored */
+    .sprite.opponent img { transform: scaleX(-1); }
+
+    /* Fast-attack lunge animations */
+    .sprite img.lunge-player { animation: player-lunge 180ms ease-out; }
+    .sprite img.lunge-opponent { animation: opponent-lunge 180ms ease-out; }
+    @keyframes player-lunge {
+      0% { transform: translateX(0); }
+      50% { transform: translateX(18%); }
+      100% { transform: translateX(0); }
+    }
+    /* Include scaleX(-1) to preserve opponent facing during animation */
+    @keyframes opponent-lunge {
+      0% { transform: scaleX(-1) translateX(0); }
+      50% { transform: scaleX(-1) translateX(-18%); }
+      100% { transform: scaleX(-1) translateX(0); }
+    }
+
     /* Bottom action area with three circular moves */
     .battle-actions { background: transparent; border-top:none; padding:12px 16px 16px; display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; align-items: start; }
     .move { display:flex; flex-direction:column-reverse; align-items:center; justify-content:flex-start; gap:6px; min-width:0; }
@@ -201,9 +221,13 @@
       <!-- Stage area -->
       <section class="battle-stage" role="img" aria-label="Battle stage">
         <div class="platform opponent"></div>
-        <div class="sprite opponent" aria-label="Opponent Pokemon"></div>
+        <div class="sprite opponent" aria-label="Opponent Pokemon">
+          <img id="opponent-sprite-img" alt="Opponent Pokémon" />
+        </div>
         <div class="platform player"></div>
-        <div class="sprite player" aria-label="Your Pokemon"></div>
+        <div class="sprite player" aria-label="Your Pokemon">
+          <img id="player-sprite-img" alt="Your Pokémon" />
+        </div>
       </section>
 
       <!-- Actions -->

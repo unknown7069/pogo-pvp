@@ -9,7 +9,7 @@
     { id: 'shadow_claw',   name: 'Shadow Claw',   power: 10, energyGain: 8, attackRate: 1.5, type: 'ghost',   rank: 1 },
     { id: 'counter',       name: 'Counter',       power: 6, energyGain: 8, attackRate: 2, type: 'fighting', rank: 1 },
     { id: 'vine_whip',     name: 'Vine Whip',     power: 8, energyGain: 7, attackRate: 1, type: 'grass',   rank: 1 },
-    { id: 'ember',         name: 'Ember',         power: 7, energyGain: 7, attackRate: 1, type: 'fire',    rank: 1 },
+    { id: 'ember',         name: 'Ember',         power: 7, energyGain: 7, attackRate: 2, type: 'fire',    rank: 1 },
     { id: 'water_gun',     name: 'Water Gun',     power: 7, energyGain: 8, attackRate: 1, type: 'water',   rank: 1 },
   ]);
   const FAST_MOVES_BY_ID = Object.freeze(Object.fromEntries(FAST_MOVES.map(m => [m.id, m])));

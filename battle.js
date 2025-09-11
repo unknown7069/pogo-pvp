@@ -127,9 +127,9 @@
 
   function fastFromId(id) {
     const m = FAST_BY_ID && FAST_BY_ID[id];
-    if (!m) return { name: 'Fast', dmg: 5, energyGain: 8, rateMs: 1000, type: 'normal' };
-    const rateMs = Number(m.attackRate || 1) * 500; // interpret units as 500ms
-    return { name: m.name, dmg: Number(m.power||0), energyGain: Number(m.energyGain||0), rateMs, type: m.type };
+    if (!m) return { name: 'Fast', dmg: 0, energyGain: 0, attackRate: 0, type: 'normal' };
+    const attackRate = Number(m.attackRate || 0); // in seconds
+    return { name: m.name, dmg: Number(m.power||0), energyGain: Number(m.energyGain||0), attackRate, type: m.type };
   }
   function chargedFromId(id) {
     const m = CHARGED_BY_ID && CHARGED_BY_ID[id];
@@ -177,7 +177,7 @@
       hp: maxHP,
       energy: 0,
       cp: cpFromStats(stats),
-      fast: fastFromId(fastId || 'quick_attack'),
+      fast: fastFromId(fastId),
       charged: charged.length ? charged : [ chargedFromId('body_slam') ],
     };
   }
@@ -339,13 +339,11 @@
   const state = {
     active: false,
     controlsDisabled: true,
-    // Legacy flag kept for compatibility; not used with the new tick engine
-    charging: { player: false, opponent: false },
-    timers: { global: null, playerFast: null, opponentFast: null, opponentAI: null, switchCountdown: null, switchAuto: null },
+    timers: { global: null, switchCountdown: null, switchAuto: null },
     tick: 0,
     schedule: {
-      player: { fastTicks: 2, nextFastTick: 0, lockUntilTick: 0, pendingChargedIndex: null },
-      opponent: { fastTicks: 2, nextFastTick: 0, lockUntilTick: 0, pendingChargedIndex: null },
+      player: { fastTicks: 2, lockUntilTick: 0, pendingChargedIndex: null },
+      opponent: { fastTicks: 2, lockUntilTick: 0, pendingChargedIndex: null },
     },
   };
 
@@ -422,6 +420,26 @@
   const playerCpEl = document.getElementById('player-cp');
   const oppSpriteEl = document.querySelector('.sprite.opponent');
   const playerSpriteEl = document.querySelector('.sprite.player');
+  const oppSpriteImg = document.getElementById('opponent-sprite-img');
+  const playerSpriteImg = document.getElementById('player-sprite-img');
+
+  // Build PokemonDB sprite URLs from name
+  function slugifyPokemonName(name) {
+    const s = String(name || '').toLowerCase().trim();
+    // Replace any non-alphanumeric with hyphen, collapse repeats, trim hyphens
+    return s
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '') // strip diacritics
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+  function spriteUrlFor(name, side) {
+    const slug = slugifyPokemonName(name);
+    if (side === 'player') {
+      return `https://img.pokemondb.net/sprites/black-white/anim/back-normal/${slug}.gif`;
+    }
+    return `https://img.pokemondb.net/sprites/black-white/anim/normal/${slug}.gif`;
+  }
   const oppEffectSlot = document.getElementById('opponent-effect-slot');
   const playerEffectSlot = document.getElementById('player-effect-slot');
 
@@ -443,8 +461,32 @@
     if (playerNameEl) playerNameEl.textContent = player.name;
     if (playerCpEl) playerCpEl.textContent = `CP ${player.cp}`;
     renderTypes(playerTypesEl, player.types);
-    if (oppSpriteEl) oppSpriteEl.textContent = '';
-    if (playerSpriteEl) playerSpriteEl.textContent = '';
+    // Update sprites
+    const oppUrl = spriteUrlFor(opponent.name, 'opponent');
+    const playerUrl = spriteUrlFor(player.name, 'player');
+    if (oppSpriteImg) {
+      oppSpriteImg.src = oppUrl;
+      oppSpriteImg.alt = opponent.name;
+    } else if (oppSpriteEl) {
+      // Fallback: create img if missing
+      const img = document.createElement('img');
+      img.id = 'opponent-sprite-img';
+      img.alt = opponent.name;
+      img.src = oppUrl;
+      oppSpriteEl.textContent = '';
+      oppSpriteEl.appendChild(img);
+    }
+    if (playerSpriteImg) {
+      playerSpriteImg.src = playerUrl;
+      playerSpriteImg.alt = player.name;
+    } else if (playerSpriteEl) {
+      const img = document.createElement('img');
+      img.id = 'player-sprite-img';
+      img.alt = player.name;
+      img.src = playerUrl;
+      playerSpriteEl.textContent = '';
+      playerSpriteEl.appendChild(img);
+    }
   }
 
   function updateEnergyUI() {
@@ -493,7 +535,7 @@
   }
 
   // ---------------------------
-  // Battle mechanics (0.5s tick, simultaneous resolution)
+  // Battle mechanics (0.5s global tick, simultaneous resolution)
   // ---------------------------
   const ENERGY_CAP = 100;
   const TICK_MS = 500;
@@ -507,8 +549,8 @@
   }
 
   function fastTicksFor(move) {
-    // rateMs was built from attackRate (in seconds) * 500; recover attackRate and map to 0.5s ticks
-    const units = Math.max(0.5, Number(move.rateMs || 500) / 500); // attackRate in seconds
+    // Map attackRate in seconds to 0.5s ticks: 0.5s => 1 tick, 1s => 2 ticks, etc.
+    const units = Math.max(0.5, Number(move.attackRate || 1));
     return Math.max(1, Math.round(units * 2));
   }
 
@@ -522,8 +564,6 @@
     state.tick = 0;
     state.schedule.player.fastTicks = fastTicksFor(player.fast);
     state.schedule.opponent.fastTicks = fastTicksFor(opponent.fast);
-    state.schedule.player.nextFastTick = state.schedule.player.fastTicks;
-    state.schedule.opponent.nextFastTick = state.schedule.opponent.fastTicks;
     state.schedule.player.lockUntilTick = 0;
     state.schedule.opponent.lockUntilTick = 0;
     state.schedule.player.pendingChargedIndex = null;
@@ -578,8 +618,12 @@
           pSched.pendingChargedIndex = null;
         }
       }
-      if (!playerAction && state.tick >= pSched.nextFastTick) {
-        playerAction = { kind: 'fast', move: player.fast };
+      // Gate fast moves strictly by global tick modulo their attackRate period in ticks
+      if (!playerAction) {
+        const period = Math.max(1, Number(pSched.fastTicks || fastTicksFor(player.fast)));
+        if (state.tick % period === 0) {
+          playerAction = { kind: 'fast', move: player.fast };
+        }
       }
     }
 
@@ -593,8 +637,12 @@
           oSched.pendingChargedIndex = null;
         }
       }
-      if (!opponentAction && state.tick >= oSched.nextFastTick) {
-        opponentAction = { kind: 'fast', move: opponent.fast };
+      // Gate fast moves strictly by global tick modulo their attackRate period in ticks
+      if (!opponentAction) {
+        const period = Math.max(1, Number(oSched.fastTicks || fastTicksFor(opponent.fast)));
+        if (state.tick % period === 0) {
+          opponentAction = { kind: 'fast', move: opponent.fast };
+        }
       }
     }
 
@@ -608,6 +656,14 @@
     let opponentSE = false;
     let playerNVE = false; // not very effective
     let opponentNVE = false;
+
+    // Trigger fast-attack lunge animations immediately when a fast attack is queued
+    if (playerAction && playerAction.kind === 'fast') {
+      try { triggerLunge('player'); } catch (_) {}
+    }
+    if (opponentAction && opponentAction.kind === 'fast') {
+      try { triggerLunge('opponent'); } catch (_) {}
+    }
 
     if (playerAction) {
       if (playerAction.kind === 'charged') {
@@ -658,9 +714,6 @@
         const cd = chargedCooldownTicksFor(playerAction.move);
         pSched.lockUntilTick = state.tick + cd;
         pSched.pendingChargedIndex = null;
-        pSched.nextFastTick = pSched.lockUntilTick + pSched.fastTicks;
-      } else {
-        pSched.nextFastTick = state.tick + pSched.fastTicks;
       }
     }
     if (opponentAction) {
@@ -668,9 +721,6 @@
         const cd = chargedCooldownTicksFor(opponentAction.move);
         oSched.lockUntilTick = state.tick + cd;
         oSched.pendingChargedIndex = null;
-        oSched.nextFastTick = oSched.lockUntilTick + oSched.fastTicks;
-      } else {
-        oSched.nextFastTick = state.tick + oSched.fastTicks;
       }
     }
 
@@ -717,13 +767,24 @@
     refreshMoveButtons();
   }
 
+  // Small nudge animation towards the center for fast attacks
+  function triggerLunge(side) {
+    const img = side === 'player' ? playerSpriteImg : oppSpriteImg;
+    if (!img) return;
+    const cls = side === 'player' ? 'lunge-player' : 'lunge-opponent';
+    // Restart animation reliably
+    img.classList.remove(cls);
+    void img.offsetWidth; // force reflow
+    img.classList.add(cls);
+    // Cleanup at end to allow retriggering
+    const onEnd = () => { img.classList.remove(cls); };
+    img.addEventListener('animationend', onEnd, { once: true });
+  }
+
   function endBattle(reason) {
     state.active = false;
     setControlsDisabled(true);
     if (state.timers.global) { clearInterval(state.timers.global); state.timers.global = null; }
-    clearInterval(state.timers.playerFast); state.timers.playerFast = null;
-    clearInterval(state.timers.opponentFast); state.timers.opponentFast = null;
-    clearInterval(state.timers.opponentAI); state.timers.opponentAI = null;
   }
 
   function concludeBattle(outcome) {
@@ -824,9 +885,6 @@
 
   function stopAllLoops() {
     if (state.timers.global) { clearInterval(state.timers.global); state.timers.global = null; }
-    clearInterval(state.timers.playerFast); state.timers.playerFast = null;
-    clearInterval(state.timers.opponentFast); state.timers.opponentFast = null;
-    clearInterval(state.timers.opponentAI); state.timers.opponentAI = null;
   }
 
   function startAllLoops() {
@@ -845,8 +903,7 @@
 
     activePlayerIndex = nextIndex;
     player = playerTeam[activePlayerIndex].pokemon;
-    // Reset per-switch flags
-    state.charging.player = false;
+    // Reset per-switch state
     // Reset recent damage overlay baseline for player to avoid cross-Pokémon artifacts
     prevPlayerHpPct = Math.max(0, Math.round((player.hp / player.maxHP) * 100));
     if (recentDamageTimers.player) { clearTimeout(recentDamageTimers.player); recentDamageTimers.player = null; }
@@ -936,7 +993,7 @@
   function performOpponentSwitch(nextIndex) {
     activeOpponentIndex = nextIndex;
     opponent = opponentTeam[activeOpponentIndex].pokemon;
-    state.charging.opponent = false;
+    // Reset per-switch state
     // Reset recent damage overlay baseline for opponent
     prevOpponentHpPct = Math.max(0, Math.round((opponent.hp / opponent.maxHP) * 100));
     if (recentDamageTimers.opponent) { clearTimeout(recentDamageTimers.opponent); recentDamageTimers.opponent = null; }
