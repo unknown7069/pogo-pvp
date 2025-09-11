@@ -20,21 +20,22 @@
       <button class="btn btn-primary" id="doneBtn">Done</button>
     </div>
   </div>
+  <script src="pokemon-data.js"></script>
   <script src="shared.js"></script>
   <script>
     (function(){
       const MAX_TEAM = 3;
 
+      const PD = window.PokemonData || {};
       const grid = document.getElementById('pokemonGrid');
       const slots = Array.from(document.querySelectorAll('.slot'));
       const cancelBtn = document.getElementById('cancelBtn');
       const doneBtn = document.getElementById('doneBtn');
 
-      // Build a sample list of Pokemon buttons
-      const names = Array.from({length: 36}, (_, i) => `Pokemon ${i+1}`);
+      const list = Array.isArray(PD.all) && PD.all.length ? PD.all : [];
 
-      // Map for fast button lookups by name
-      const buttonsByName = new Map();
+      // Map for fast button lookups by id
+      const buttonsById = new Map();
       // Track previous selected set to diff UI updates
       let prevSelected = new Set();
 
@@ -42,15 +43,15 @@
         // Clear and batch-insert for minimal reflow
         grid.textContent = '';
         const frag = document.createDocumentFragment();
-        names.forEach((name, idx) => {
+        list.forEach((mon) => {
           const btn = document.createElement('button');
           btn.className = 'pokemon-btn';
           btn.type = 'button';
-          btn.textContent = name;
-          btn.dataset.name = name;
-          btn.dataset.index = String(idx);
+          btn.textContent = mon.name;
+          btn.dataset.id = String(mon.id);
+          btn.dataset.name = mon.name;
           btn.setAttribute('aria-pressed', 'false');
-          buttonsByName.set(name, btn);
+          buttonsById.set(Number(mon.id), btn);
           frag.appendChild(btn);
         });
         grid.appendChild(frag);
@@ -73,10 +74,15 @@
         } catch (_) { /* ignore */ }
       }
 
+      function getNameById(id){
+        const mon = (PD.byId && PD.byId.get) ? PD.byId.get(Number(id)) : null;
+        return (mon && mon.name) || 'Unknown';
+      }
+
       function loadExisting() {
         const state = readState();
-        const saved = Array.isArray(state.selectedTeam) ? state.selectedTeam : [];
-        workingTeam = saved.slice(0, MAX_TEAM);
+        const savedIds = Array.isArray(state.selectedTeamIds) ? state.selectedTeamIds : [];
+        workingTeam = savedIds.slice(0, MAX_TEAM).map(Number).filter(n => !Number.isNaN(n));
         updateSlots();
         updateGridSelection();
       }
@@ -84,9 +90,9 @@
       function updateSlots() {
         for (let i = 0; i < MAX_TEAM; i++) {
           const slot = slots[i];
-          const name = workingTeam[i];
-          if (name) {
-            slot.textContent = name;
+          const id = workingTeam[i];
+          if (typeof id === 'number') {
+            slot.textContent = getNameById(id);
             slot.classList.add('filled');
           } else {
             slot.textContent = 'Empty';
@@ -98,9 +104,9 @@
       function updateGridSelection() {
         const selected = new Set(workingTeam);
         // Remove selection for items no longer selected
-        prevSelected.forEach((name) => {
-          if (!selected.has(name)) {
-            const btn = buttonsByName.get(name);
+        prevSelected.forEach((id) => {
+          if (!selected.has(id)) {
+            const btn = buttonsById.get(Number(id));
             if (btn) {
               btn.classList.remove('selected');
               btn.setAttribute('aria-pressed', 'false');
@@ -108,9 +114,9 @@
           }
         });
         // Add selection for new items
-        selected.forEach((name) => {
-          if (!prevSelected.has(name)) {
-            const btn = buttonsByName.get(name);
+        selected.forEach((id) => {
+          if (!prevSelected.has(id)) {
+            const btn = buttonsById.get(Number(id));
             if (btn) {
               btn.classList.add('selected');
               btn.setAttribute('aria-pressed', 'true');
@@ -124,12 +130,12 @@
       grid.addEventListener('click', (e) => {
         const btn = e.target.closest('.pokemon-btn');
         if (!btn) return;
-        const name = btn.dataset.name;
-        const i = workingTeam.indexOf(name);
+        const id = Number(btn.dataset.id || 0);
+        const i = workingTeam.indexOf(id);
         if (i !== -1) {
           workingTeam.splice(i, 1);
         } else if (workingTeam.length < MAX_TEAM) {
-          workingTeam.push(name);
+          workingTeam.push(id);
         } else {
           // Team is full; ignore extra selections
           return;
@@ -144,8 +150,9 @@
         window.location.href = 'rocket-select.html';
       });
       doneBtn.addEventListener('click', () => {
-        const finalTeam = workingTeam.slice(0, MAX_TEAM);
-        writeState({ selectedTeam: finalTeam });
+        const finalTeamIds = workingTeam.slice(0, MAX_TEAM).map(Number);
+        const finalTeamNames = finalTeamIds.map(getNameById);
+        writeState({ selectedTeamIds: finalTeamIds, selectedTeam: finalTeamNames });
         // Navigate directly; team is in localStorage now
         window.location.href = 'battle.html';
       });

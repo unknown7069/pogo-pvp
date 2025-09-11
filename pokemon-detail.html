@@ -143,6 +143,7 @@
       </div>
     </div>
   </div>
+  <script src="pokemon-data.js"></script>
   <script src="shared.js"></script>
   <script>
     (function(){
@@ -158,55 +159,53 @@
           return raw ? JSON.parse(raw) : {};
         } catch (_) { return {}; }
       }
+      const PD = window.PokemonData || {};
       const state = readState();
-      const data = state.viewPokemon || { name: 'Pokemon 1', index: 0 };
+      const view = state.viewPokemon || {};
+      const id = Number(view.id || 0) || (PD.all && PD.all[0] && PD.all[0].id) || 0;
+      const mon = (PD.byId && PD.byId.get) ? PD.byId.get(id) : null;
+      const name = (mon && mon.name) || (view.name || 'Pokemon');
+      const stats = (PD.getGoStatsById && id) ? PD.getGoStatsById(id) : { hp: 100, attack: 50, defense: 50 };
+      const hpMax = Math.max(1, Number(stats.hp || 100));
+      const hp = hpMax;
+      const atk = Number(stats.attack || 50);
+      const def = Number(stats.defense || 50);
+      const sta = Number(stats.hp || 50);
+      const level = 20; // placeholder level display
+      const types = (mon && mon.types) || [];
 
-      // Synthetic demo data based on index
-      const idx = Number(data.index || 0);
-      const cp = 200 + (idx*37 % 2500);
-      const level = 10 + (idx % 30);
-      const hpMax = 60 + (idx % 90);
-      const hp = Math.max(10, Math.min(hpMax, hpMax - (idx % 20)));
-      const atk = 40 + (idx*3 % 60);
-      const def = 40 + (idx*5 % 60);
-      const sta = 40 + (idx*7 % 60);
-      const typesList = [
-        ['normal'], ['fire'], ['water'], ['electric'], ['grass'], ['ice'],
-        ['fighting'], ['poison'], ['ground'], ['flying'], ['psychic'], ['bug'],
-        ['rock'], ['ghost'], ['dragon'], ['dark'], ['steel'], ['fairy'],
-        ['water','flying'], ['grass','poison'], ['ground','rock'], ['fire','fighting']
-      ];
-      const types = typesList[idx % typesList.length];
-
-      // Moves demo
-      const fastMoves = ['Quick Attack', 'Dragon Breath', 'Shadow Claw', 'Counter', 'Vine Whip'];
-      const chargeMoves = ['Aqua Tail', 'Body Slam', 'Rock Slide', 'Shadow Ball', 'Hydro Cannon'];
-      const fast = fastMoves[idx % fastMoves.length];
-      const ch1 = chargeMoves[(idx+1) % chargeMoves.length];
-      const ch2 = chargeMoves[(idx+2) % chargeMoves.length];
+      // Moves from PokemonData
+      const fastId = mon && Array.isArray(mon.fastMoves) && mon.fastMoves[0];
+      const fastDef = fastId && PD.FAST_MOVES_BY_ID ? PD.FAST_MOVES_BY_ID[fastId] : null;
+      const chargedIds = (mon && Array.isArray(mon.chargedMoves)) ? mon.chargedMoves.slice(0, 2) : [];
+      const ch1Def = chargedIds[0] && PD.CHARGED_MOVES_BY_ID ? PD.CHARGED_MOVES_BY_ID[chargedIds[0]] : null;
+      const ch2Def = chargedIds[1] && PD.CHARGED_MOVES_BY_ID ? PD.CHARGED_MOVES_BY_ID[chargedIds[1]] : null;
 
       // Populate UI
       const $ = (id) => document.getElementById(id);
+      // Simple CP derivation for display purposes
+      const cp = Math.round((atk + def) * 2 + hpMax * 0.5);
       $('cpValue').textContent = cp;
-      $('portrait').textContent = (data.name || 'Pokemon').slice(0, 4).toUpperCase();
-      $('nameRow').textContent = data.name || 'Pokemon';
+      $('portrait').textContent = name.slice(0, 4).toUpperCase();
+      $('nameRow').textContent = name;
       $('metaRow').textContent = `Lvl ${level} • HP ${hp} / ${hpMax}`;
       $('hpValue').textContent = `${hp} / ${hpMax}`;
       $('hpFill').style.width = `${Math.round((hp/hpMax)*100)}%`;
-      $('atkFill').style.width = `${Math.min(100, Math.round(atk))}%`;
-      $('defFill').style.width = `${Math.min(100, Math.round(def))}%`;
-      $('staFill').style.width = `${Math.min(100, Math.round(sta))}%`;
-      $('fastMove').textContent = fast;
-      $('chargeMove1').textContent = ch1;
-      $('chargeMove2').textContent = ch2;
-      $('fastPower').textContent = 6 + (idx % 6) * 2;
-      $('chargePower1').textContent = 50 + (idx % 6) * 10;
-      $('chargePower2').textContent = 80 + (idx % 6) * 15;
+      const pct = (v, max = 300) => String(Math.min(100, Math.round((Number(v||0) / max) * 100))) + '%';
+      $('atkFill').style.width = pct(atk);
+      $('defFill').style.width = pct(def);
+      $('staFill').style.width = pct(sta);
+      $('fastMove').textContent = (fastDef && fastDef.name) || 'Fast Move';
+      $('chargeMove1').textContent = (ch1Def && ch1Def.name) || 'Charge Move 1';
+      $('chargeMove2').textContent = (ch2Def && ch2Def.name) || 'Charge Move 2';
+      $('fastPower').textContent = (fastDef && fastDef.power != null) ? fastDef.power : '';
+      $('chargePower1').textContent = (ch1Def && ch1Def.power != null) ? ch1Def.power : '';
+      $('chargePower2').textContent = (ch2Def && ch2Def.power != null) ? ch2Def.power : '';
 
       // Type chips
       const chipWrap = document.getElementById('typeChips');
       chipWrap.innerHTML = '';
-      types.forEach(t => {
+      (types || []).forEach(t => {
         const chip = document.createElement('div');
         chip.className = `chip t-${t}`;
         chip.textContent = t.toUpperCase();

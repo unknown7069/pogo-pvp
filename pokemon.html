@@ -24,21 +24,23 @@
       <button class="close-btn" id="closeBtn" type="button" aria-label="Close">&times;</button>
     </div>
   </div>
+  <script src="pokemon-data.js"></script>
   <script src="shared.js"></script>
   <script>
     (function(){
+      const PD = window.PokemonData || {};
       const grid = document.getElementById('pokemonGrid');
-      const names = Array.from({length: 36}, (_, i) => `Pokemon ${i+1}`);
+      const list = Array.isArray(PD.all) && PD.all.length ? PD.all : [];
 
       function renderGrid() {
         grid.innerHTML = '';
-        names.forEach((name, idx) => {
+        list.forEach((mon) => {
           const btn = document.createElement('button');
           btn.className = 'pokemon-btn';
           btn.type = 'button';
-          btn.textContent = name;
-          btn.dataset.name = name;
-          btn.dataset.index = String(idx);
+          btn.textContent = mon.name;
+          btn.dataset.id = String(mon.id);
+          btn.dataset.name = mon.name;
           grid.appendChild(btn);
         });
       }
@@ -60,13 +62,13 @@
         } catch (_) { /* ignore */ }
       }
 
-      // Navigate to detail on click
+      // Navigate to detail on click (store selected id)
       grid.addEventListener('click', (e) => {
         const btn = e.target.closest('.pokemon-btn');
         if (!btn) return;
-        const name = btn.dataset.name;
-        const index = Number(btn.dataset.index || 0);
-        writeState({ viewPokemon: { name, index } });
+        const id = Number(btn.dataset.id || 0);
+        const name = btn.dataset.name || '';
+        writeState({ viewPokemon: { id, name } });
         window.location.href = 'pokemon-detail.html';
       });
 

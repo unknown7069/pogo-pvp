@@ -52,67 +52,66 @@
   }
 
   // ---------------------------
-  // Moves data (demo balance)
+  // Real moves and Pokémon data
   // ---------------------------
-  const FAST_POOL = ['Quick Attack','Dragon Breath','Shadow Claw','Counter','Vine Whip'];
-  const CHARGED_POOL = ['Aqua Tail','Body Slam','Rock Slide','Shadow Ball','Hydro Cannon','Hydro Pump'];
+  const PD = window.PokemonData || {};
+  const FAST_BY_ID = PD.FAST_MOVES_BY_ID || {};
+  const CHARGED_BY_ID = PD.CHARGED_MOVES_BY_ID || {};
+  const ALL_SPECIES = Array.isArray(PD.all) ? PD.all : [];
 
-  const MOVES = {
-    fast: {
-      'Quick Attack': { name:'Quick Attack', dmg:5, energyGain:8, rateMs:800, type:'normal' },
-      'Dragon Breath': { name:'Dragon Breath', dmg:4, energyGain:9, rateMs:500, type:'dragon' },
-      'Shadow Claw': { name:'Shadow Claw', dmg:6, energyGain:8, rateMs:700, type:'ghost' },
-      'Counter': { name:'Counter', dmg:7, energyGain:8, rateMs:900, type:'fighting' },
-      'Vine Whip': { name:'Vine Whip', dmg:5, energyGain:7, rateMs:600, type:'grass' },
-    },
-    charged: {
-      'Aqua Tail': { name:'Aqua Tail', energy:35, dmg:50, chargeUpMs:1300, type:'water' },
-      'Body Slam': { name:'Body Slam', energy:35, dmg:60, chargeUpMs:1000, type:'normal' },
-      'Rock Slide': { name:'Rock Slide', energy:45, dmg:75, chargeUpMs:1500, type:'rock' },
-      'Shadow Ball': { name:'Shadow Ball', energy:55, dmg:100, chargeUpMs:1700, type:'ghost' },
-      'Hydro Cannon': { name:'Hydro Cannon', energy:50, dmg:90, chargeUpMs:1600, type:'water' },
-      'Hydro Pump': { name:'Hydro Pump', energy:75, dmg:130, chargeUpMs:2400, type:'water' },
-    }
-  };
-
-  const TYPES_LIST = [
-    ['normal'], ['fire'], ['water'], ['electric'], ['grass'], ['ice'],
-    ['fighting'], ['poison'], ['ground'], ['flying'], ['psychic'], ['bug'],
-    ['rock'], ['ghost'], ['dragon'], ['dark'], ['steel'], ['fairy'],
-    ['water','flying'], ['grass','poison'], ['ground','rock'], ['fire','fighting']
-  ];
+  function fastFromId(id) {
+    const m = FAST_BY_ID && FAST_BY_ID[id];
+    if (!m) return { name: 'Fast', dmg: 5, energyGain: 8, rateMs: 1000, type: 'normal' };
+    const rateMs = Number(m.attackRate || 1) * 500; // interpret units as 500ms
+    return { name: m.name, dmg: Number(m.power||0), energyGain: Number(m.energyGain||0), rateMs, type: m.type };
+  }
+  function chargedFromId(id) {
+    const m = CHARGED_BY_ID && CHARGED_BY_ID[id];
+    if (!m) return { name: 'Charged', energy: 50, dmg: 80, chargeUpMs: 1500, type: 'normal' };
+    const chargeUpMs = Number(m.chargeUpTime || 1) * 500; // 500ms units
+    return { name: m.name, energy: Number(m.energyCost||0), dmg: Number(m.power||0), chargeUpMs, type: m.type };
+  }
 
   // ---------------------------
   // Pokemon factories
   // ---------------------------
-  function parseIndexFromName(name) {
-    const m = /([0-9]+)/.exec(String(name||''));
-    if (!m) return 0;
-    const n = Math.max(1, parseInt(m[1], 10));
-    return (n - 1); // 0-based
+  function cpFromStats(stats) {
+    const a = Number(stats.attack||0), d = Number(stats.defense||0), h = Number(stats.hp||0);
+    return Math.max(10, Math.round((a + d) * 2 + h * 0.5));
   }
 
-  function pickFast(idx) {
-    const key = FAST_POOL[idx % FAST_POOL.length];
-    return MOVES.fast[key];
-  }
-  function pickCharged(idx, offset) {
-    const key = CHARGED_POOL[(idx + offset) % CHARGED_POOL.length];
-    return MOVES.charged[key];
-  }
-
-  function makePokemon(seedIndex, nameLabel) {
-    const idx = Number(seedIndex||0);
-    const types = TYPES_LIST[idx % TYPES_LIST.length];
-    const maxHP = 100; // keep UI simple
+  function makePokemonFromId(id) {
+    const mon = (PD.byId && PD.byId.get) ? PD.byId.get(Number(id)) : null;
+    if (!mon) {
+      // Fallback dummy
+      const maxHP = 100;
+      return {
+        id: Number(id)||0,
+        name: 'Pokemon',
+        types: ['normal'],
+        maxHP,
+        hp: maxHP,
+        energy: 0,
+        cp: 500,
+        fast: fastFromId('quick_attack'),
+        charged: [ chargedFromId('body_slam'), chargedFromId('rock_slide'), chargedFromId('aqua_tail') ],
+      };
+    }
+    const stats = PD.getGoStatsById ? PD.getGoStatsById(mon.id) : { hp: 100, attack: 50, defense: 50 };
+    const maxHP = Math.max(1, Number(stats.hp||100));
+    const fastId = Array.isArray(mon.fastMoves) && mon.fastMoves[0];
+    const chargedIds = Array.isArray(mon.chargedMoves) ? mon.chargedMoves : [];
+    const charged = chargedIds.slice(0,3).map(chargedFromId);
     return {
-      name: nameLabel || `Pokemon ${idx+1}`,
-      types,
+      id: mon.id,
+      name: mon.name,
+      types: Array.isArray(mon.types) ? mon.types : [],
       maxHP,
       hp: maxHP,
       energy: 0,
-      fast: pickFast(idx),
-      charged: [ pickCharged(idx,1), pickCharged(idx,2), pickCharged(idx,3) ],
+      cp: cpFromStats(stats),
+      fast: fastFromId(fastId || 'quick_attack'),
+      charged: charged.length ? charged : [ chargedFromId('body_slam') ],
     };
   }
 
@@ -136,11 +135,12 @@
   }
 
   const __state = readState();
-  const selectedTeam = Array.isArray(__state.selectedTeam) ? __state.selectedTeam : null;
+  const selectedTeamIds = Array.isArray(__state.selectedTeamIds) ? __state.selectedTeamIds : null;
+  const selectedTeamNamesLegacy = Array.isArray(__state.selectedTeam) ? __state.selectedTeam : null;
   const selectedBattle = (__state.selectedBattle && typeof __state.selectedBattle.index === 'number' && __state.selectedBattle.label)
     ? __state.selectedBattle
     : null;
-  if (!selectedTeam || selectedTeam.length === 0 || !selectedBattle) {
+  if ((!selectedTeamIds || selectedTeamIds.length === 0) && (!selectedTeamNamesLegacy || selectedTeamNamesLegacy.length === 0) || !selectedBattle) {
     // Required info missing; send player back to start screen
     window.location.replace('index.html');
     return;
@@ -148,27 +148,31 @@
 
   const opponentIdx = Number(selectedBattle.index || 0);
 
-  function calcCp(idx){ return 200 + ((idx * 37) % 2500); }
-
-  // Build player's team (up to 3), instantiate each Pokémon once
-  const teamNames = selectedTeam;
-  const playerTeam = teamNames.map((name) => {
-    const idx = parseIndexFromName(name);
-    const poke = makePokemon(idx, name);
-    poke.cp = calcCp(idx);
-    return { name, idx, pokemon: poke, fainted: false };
-  });
+  // Build player's team from IDs if available; else legacy fallback
+  let playerTeam = [];
+  let teamIds = [];
+  if (selectedTeamIds && selectedTeamIds.length) {
+    teamIds = selectedTeamIds.map(Number).slice(0,3);
+    playerTeam = teamIds.map((id) => {
+      const poke = makePokemonFromId(id);
+      return { id, name: poke.name, pokemon: poke, fainted: false };
+    });
+  } else {
+    // Legacy fallback: map names to first N species in PD
+    const fallback = (ALL_SPECIES.length ? ALL_SPECIES : [{id:1,name:'Pokemon'},{id:4,name:'Pokemon'},{id:7,name:'Pokemon'}]);
+    teamIds = selectedTeamNamesLegacy.map((_, i) => fallback[i % fallback.length].id);
+    playerTeam = teamIds.map((id) => {
+      const poke = makePokemonFromId(id);
+      return { id, name: poke.name, pokemon: poke, fainted: false };
+    });
+  }
 
   let activePlayerIndex = 0;
   let player = playerTeam[activePlayerIndex].pokemon;
-  // Build opponent's team (3 mons) based on selected stage index
-  const oppLabel = selectedBattle.label;
-  const oppSeeds = [opponentIdx, opponentIdx + 1, opponentIdx + 2];
-  const opponentTeam = oppSeeds.map((seed, i) => {
-    const poke = makePokemon(seed, oppLabel + ' ' + (i + 1));
-    poke.cp = calcCp(seed);
-    return { idx: seed, pokemon: poke, fainted: false };
-  });
+  // Build opponent's team from species list, rotating by stage index
+  const pool = ALL_SPECIES.length ? ALL_SPECIES : [{id:1,name:'Pokemon'}];
+  const oppIds = [0,1,2].map(i => pool[(opponentIdx + i) % pool.length].id);
+  const opponentTeam = oppIds.map((id) => ({ id, pokemon: makePokemonFromId(id), fainted: false }));
 
   let activeOpponentIndex = 0;
   let opponent = opponentTeam[activeOpponentIndex].pokemon;
@@ -183,15 +187,15 @@
       activePlayerIndex,
       activeOpponentIndex,
       playerTeam: playerTeam.map(m => ({
+        id: m.id,
         name: m.name,
-        idx: m.idx,
         hp: m.pokemon.hp,
         maxHP: m.pokemon.maxHP,
         energy: m.pokemon.energy,
         fainted: !!m.fainted,
       })),
       opponentTeam: opponentTeam.map(m => ({
-        idx: m.idx,
+        id: m.id,
         hp: m.pokemon.hp,
         maxHP: m.pokemon.maxHP,
         energy: m.pokemon.energy,
@@ -215,8 +219,8 @@
       if (!saved || typeof saved !== 'object') return false;
       if (Number(saved.stageIndex) !== Number(opponentIdx)) return false;
       // Validate team matches
-      const savedNames = (saved.playerTeam || []).map(p => p.name);
-      const sameTeam = Array.isArray(savedNames) && savedNames.length === teamNames.length && savedNames.every((n, i) => n === teamNames[i]);
+      const savedIds = (saved.playerTeam || []).map(p => p.id);
+      const sameTeam = Array.isArray(savedIds) && savedIds.length === teamIds.length && savedIds.every((n, i) => Number(n) === Number(teamIds[i]));
       if (!sameTeam) return false;
       // Apply player team hp/energy/fainted
       (saved.playerTeam || []).forEach((s, i) => {
@@ -277,6 +281,8 @@
   const playerNameEl = document.getElementById('player-name');
   const playerTypesEl = document.getElementById('player-types');
   const playerCpEl = document.getElementById('player-cp');
+  const oppSpriteEl = document.querySelector('.sprite.opponent');
+  const playerSpriteEl = document.querySelector('.sprite.player');
 
   function renderTypes(container, types) {
     if (!container) return;
@@ -296,6 +302,8 @@
     if (playerNameEl) playerNameEl.textContent = player.name;
     if (playerCpEl) playerCpEl.textContent = `CP ${player.cp}`;
     renderTypes(playerTypesEl, player.types);
+    if (oppSpriteEl) oppSpriteEl.textContent = (opponent.name || 'OPP').slice(0,4).toUpperCase();
+    if (playerSpriteEl) playerSpriteEl.textContent = (player.name || 'YOU').slice(0,4).toUpperCase();
   }
 
   function updateEnergyUI() {
@@ -439,7 +447,8 @@
       outcome, // 'win' | 'lose' | 'forfeit'
       opponent: (selectedBattle && selectedBattle.label) || 'Opponent',
       stageIndex: Number((selectedBattle && selectedBattle.index) || 0),
-      team: (Array.isArray(teamNames) ? teamNames : []),
+      teamIds: Array.isArray(teamIds) ? teamIds.slice() : [],
+      teamNames: Array.isArray(playerTeam) ? playerTeam.map(m => m.name) : [],
       timestamp: Date.now(),
     };
     try {
