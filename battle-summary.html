@@ -52,6 +52,7 @@
         if (r.outcome === 'win') title = 'You Won!';
         else if (r.outcome === 'lose') title = 'You Lost';
         else if (r.outcome === 'forfeit') title = 'You Forfeited';
+        else if (r.outcome === 'tie') title = 'It\'s a Tie!';
         const vs = r.opponent ? `Opponent: ${r.opponent}` : '';
         detail = vs
       } else {

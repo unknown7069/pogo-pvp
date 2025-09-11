@@ -273,8 +273,14 @@
   const state = {
     active: false,
     controlsDisabled: true,
+    // Legacy flag kept for compatibility; not used with the new tick engine
     charging: { player: false, opponent: false },
-    timers: { playerFast: null, opponentFast: null, opponentAI: null, switchCountdown: null, switchAuto: null },
+    timers: { global: null, playerFast: null, opponentFast: null, opponentAI: null, switchCountdown: null, switchAuto: null },
+    tick: 0,
+    schedule: {
+      player: { fastTicks: 2, nextFastTick: 0, lockUntilTick: 0, pendingChargedIndex: null },
+      opponent: { fastTicks: 2, nextFastTick: 0, lockUntilTick: 0, pendingChargedIndex: null },
+    },
   };
 
   // ---------------------------
@@ -339,8 +345,9 @@
       // Update label element under the button
       const labelEl = btn.parentElement && btn.parentElement.querySelector('.move-label');
       if (labelEl) labelEl.textContent = labelForCharged(move);
-      // Enable only if battle active, not globally disabled, not charging, and enough energy
-      const canUse = state.active && !state.controlsDisabled && !state.charging.player && (player.energy >= move.energy);
+      // Enable when battle active, controls enabled, no charge already queued, and enough energy
+      const isQueued = state.schedule && state.schedule.player && state.schedule.player.pendingChargedIndex != null;
+      const canUse = state.active && !state.controlsDisabled && !isQueued && (player.energy >= move.energy);
       btn.disabled = !canUse;
     });
   }
@@ -353,115 +360,204 @@
   }
 
   // ---------------------------
-  // Battle mechanics
+  // Battle mechanics (0.5s tick, simultaneous resolution)
   // ---------------------------
   const ENERGY_CAP = 100;
-
-  function applyDamage(target, amount) {
-    if (!state.active) return;
-    target.hp = clamp(target.hp - amount, 0, target.maxHP);
-    updateHpUI();
-    persistBattleState();
-    if (target.hp <= 0) {
-      if (target === opponent) {
-        // Opponent faint: attempt to switch, otherwise you win
-        handleOpponentFaint();
-      } else {
-        // Player faint => prompt for next Pokémon
-        handlePlayerFaint();
-      }
-    }
-  }
+  const TICK_MS = 500;
 
   function grantEnergy(p, amount) {
     p.energy = clamp(p.energy + amount, 0, ENERGY_CAP);
-    updateEnergyUI();
-    persistBattleState();
   }
 
   function spendEnergy(p, cost) {
     p.energy = clamp(p.energy - cost, 0, ENERGY_CAP);
-    updateEnergyUI();
-    persistBattleState();
   }
 
-  function fastTick(attacker, defender, side) {
+  function fastTicksFor(move) {
+    // rateMs was built from attackRate (in seconds) * 500; recover attackRate and map to 0.5s ticks
+    const units = Math.max(0.5, Number(move.rateMs || 500) / 500); // attackRate in seconds
+    return Math.max(1, Math.round(units * 2));
+  }
+
+  function chargedCooldownTicksFor(move) {
+    // coolDownMs was built from coolDownTime (in seconds) * 500; recover and map to 0.5s ticks
+    const units = Math.max(0, Number(move.coolDownMs || 0) / 500); // seconds
+    return Math.max(0, Math.round(units * 2));
+  }
+
+  function initSchedules() {
+    state.tick = 0;
+    state.schedule.player.fastTicks = fastTicksFor(player.fast);
+    state.schedule.opponent.fastTicks = fastTicksFor(opponent.fast);
+    state.schedule.player.nextFastTick = state.schedule.player.fastTicks;
+    state.schedule.opponent.nextFastTick = state.schedule.opponent.fastTicks;
+    state.schedule.player.lockUntilTick = 0;
+    state.schedule.opponent.lockUntilTick = 0;
+    state.schedule.player.pendingChargedIndex = null;
+    state.schedule.opponent.pendingChargedIndex = null;
+  }
+
+  function queueCharge(side, index) {
     if (!state.active) return;
-    if (state.charging[side]) return; // pause during charge-up
-    applyDamage(defender, attacker.fast.dmg);
-    grantEnergy(attacker, attacker.fast.energyGain);
-    refreshMoveButtons();
-  }
-
-  function startFastLoop(side) {
-    const self = side === 'player' ? player : opponent;
-    const foe = side === 'player' ? opponent : player;
-    const rate = self.fast.rateMs;
-    clearInterval(state.timers[side+'Fast']);
-    state.timers[side+'Fast'] = setInterval(() => fastTick(self, foe, side), rate);
-  }
-
-  function stopFastLoop(side) {
-    clearInterval(state.timers[side+'Fast']);
-    state.timers[side+'Fast'] = null;
-  }
-
-  function useChargeMove(side, index) {
-    if (!state.active) return;
+    const sched = state.schedule[side];
+    if (!sched) return;
+    if (sched.pendingChargedIndex != null) return;
     const attacker = side === 'player' ? player : opponent;
-    const defender = side === 'player' ? opponent : player;
     const move = attacker.charged[index];
     if (!move) return;
     if (attacker.energy < move.energy) return;
-    // Spend energy up-front and pause fast attacks for this side
-    spendEnergy(attacker, move.energy);
-    state.charging[side] = true;
-    stopFastLoop(side);
+    // Queue to execute on next tick
+    sched.pendingChargedIndex = index;
     refreshMoveButtons();
-    // Apply damage immediately, then enforce cooldown where fast moves are paused
-    applyDamage(defender, move.dmg);
-    setTimeout(() => {
-      // Always clear cooldown flag even if battle paused/switched
-      state.charging[side] = false;
-      // Resume fast loop only if battle is active
-      if (state.active) startFastLoop(side);
-      refreshMoveButtons();
-    }, move.coolDownMs);
   }
 
-  function opponentAIThink() {
+  function maybeQueueOpponentCharge() {
     if (!state.active) return;
-    if (state.charging.opponent) return;
-    // Try to use the strongest affordable move
+    const s = state.schedule.opponent;
+    if (!s || s.pendingChargedIndex != null) return;
     const options = opponent.charged
       .map((m, i) => ({ m, i }))
       .filter(x => opponent.energy >= x.m.energy);
-    if (options.length === 0) return;
-    options.sort((a,b) => b.m.dmg - a.m.dmg);
-    const choice = options[0];
-    useChargeMove('opponent', choice.i);
+    if (!options.length) return;
+    options.sort((a, b) => b.m.dmg - a.m.dmg);
+    s.pendingChargedIndex = options[0].i;
   }
 
-  function startOpponentAI() {
-    clearInterval(state.timers.opponentAI);
-    // Check frequently if AI can throw
-    state.timers.opponentAI = setInterval(opponentAIThink, 250);
+  function onTick() {
+    if (!state.active) return;
+    state.tick += 1;
+
+    // AI can plan a charged attack for the next tick when energy allows
+    maybeQueueOpponentCharge();
+
+    const pSched = state.schedule.player;
+    const oSched = state.schedule.opponent;
+    let playerAction = null; // { kind: 'fast'|'charged', move, index? }
+    let opponentAction = null;
+
+    if (state.tick >= pSched.lockUntilTick) {
+      if (pSched.pendingChargedIndex != null) {
+        const i = pSched.pendingChargedIndex;
+        const m = player.charged[i];
+        if (m && player.energy >= m.energy) {
+          playerAction = { kind: 'charged', move: m, index: i };
+        } else {
+          pSched.pendingChargedIndex = null;
+        }
+      }
+      if (!playerAction && state.tick >= pSched.nextFastTick) {
+        playerAction = { kind: 'fast', move: player.fast };
+      }
+    }
+
+    if (state.tick >= oSched.lockUntilTick) {
+      if (oSched.pendingChargedIndex != null) {
+        const i = oSched.pendingChargedIndex;
+        const m = opponent.charged[i];
+        if (m && opponent.energy >= m.energy) {
+          opponentAction = { kind: 'charged', move: m, index: i };
+        } else {
+          oSched.pendingChargedIndex = null;
+        }
+      }
+      if (!opponentAction && state.tick >= oSched.nextFastTick) {
+        opponentAction = { kind: 'fast', move: opponent.fast };
+      }
+    }
+
+    // Accumulate simultaneous effects
+    let dmgToPlayer = 0;
+    let dmgToOpponent = 0;
+    let pEnergyDelta = 0;
+    let oEnergyDelta = 0;
+
+    if (playerAction) {
+      if (playerAction.kind === 'charged') {
+        dmgToOpponent += Number(playerAction.move.dmg || 0);
+        pEnergyDelta -= Number(playerAction.move.energy || 0);
+      } else {
+        dmgToOpponent += Number(playerAction.move.dmg || 0);
+        pEnergyDelta += Number(playerAction.move.energyGain || 0);
+      }
+    }
+    if (opponentAction) {
+      if (opponentAction.kind === 'charged') {
+        dmgToPlayer += Number(opponentAction.move.dmg || 0);
+        oEnergyDelta -= Number(opponentAction.move.energy || 0);
+      } else {
+        dmgToPlayer += Number(opponentAction.move.dmg || 0);
+        oEnergyDelta += Number(opponentAction.move.energyGain || 0);
+      }
+    }
+
+    // Apply energy changes
+    if (pEnergyDelta < 0) spendEnergy(player, -pEnergyDelta); else if (pEnergyDelta > 0) grantEnergy(player, pEnergyDelta);
+    if (oEnergyDelta < 0) spendEnergy(opponent, -oEnergyDelta); else if (oEnergyDelta > 0) grantEnergy(opponent, oEnergyDelta);
+
+    // Update schedules after actions
+    if (playerAction) {
+      if (playerAction.kind === 'charged') {
+        const cd = chargedCooldownTicksFor(playerAction.move);
+        pSched.lockUntilTick = state.tick + cd;
+        pSched.pendingChargedIndex = null;
+        pSched.nextFastTick = pSched.lockUntilTick + pSched.fastTicks;
+      } else {
+        pSched.nextFastTick = state.tick + pSched.fastTicks;
+      }
+    }
+    if (opponentAction) {
+      if (opponentAction.kind === 'charged') {
+        const cd = chargedCooldownTicksFor(opponentAction.move);
+        oSched.lockUntilTick = state.tick + cd;
+        oSched.pendingChargedIndex = null;
+        oSched.nextFastTick = oSched.lockUntilTick + oSched.fastTicks;
+      } else {
+        oSched.nextFastTick = state.tick + oSched.fastTicks;
+      }
+    }
+
+    // Apply HP changes simultaneously
+    if (dmgToPlayer > 0 || dmgToOpponent > 0) {
+      player.hp = clamp(player.hp - dmgToPlayer, 0, player.maxHP);
+      opponent.hp = clamp(opponent.hp - dmgToOpponent, 0, opponent.maxHP);
+      updateHpUI();
+      updateEnergyUI();
+      persistBattleState();
+    }
+
+    // Outcome checks (tie allowed)
+    const playerFainted = player.hp <= 0;
+    const opponentFainted = opponent.hp <= 0;
+    if (playerFainted && opponentFainted) {
+      concludeBattle('tie');
+      return;
+    }
+    if (opponentFainted) {
+      handleOpponentFaint();
+      return;
+    }
+    if (playerFainted) {
+      handlePlayerFaint();
+      return;
+    }
+
+    refreshMoveButtons();
   }
 
   function endBattle(reason) {
     state.active = false;
     setControlsDisabled(true);
-    stopFastLoop('player');
-    stopFastLoop('opponent');
-    clearInterval(state.timers.opponentAI);
-    state.timers.opponentAI = null;
+    if (state.timers.global) { clearInterval(state.timers.global); state.timers.global = null; }
+    clearInterval(state.timers.playerFast); state.timers.playerFast = null;
+    clearInterval(state.timers.opponentFast); state.timers.opponentFast = null;
+    clearInterval(state.timers.opponentAI); state.timers.opponentAI = null;
   }
 
   function concludeBattle(outcome) {
     // Stop all loops and record result, then navigate to summary
     endBattle(outcome);
     const result = {
-      outcome, // 'win' | 'lose' | 'forfeit'
+      outcome, // 'win' | 'lose' | 'forfeit' | 'tie'
       opponent: (selectedBattle && selectedBattle.label) || 'Opponent',
       stageIndex: Number((selectedBattle && selectedBattle.index) || 0),
       teamIds: Array.isArray(teamIds) ? teamIds.slice() : [],
@@ -492,15 +588,15 @@
     updateHpUI();
     updateEnergyUI();
     refreshMoveButtons();
-    startFastLoop('player');
-    startFastLoop('opponent');
-    startOpponentAI();
+    initSchedules();
+    if (state.timers.global) { clearInterval(state.timers.global); }
+    state.timers.global = setInterval(onTick, TICK_MS);
   }
 
   // Wire player charge buttons
   moveButtons.forEach((btn, i) => {
     btn.addEventListener('click', () => {
-      useChargeMove('player', i);
+      queueCharge('player', i);
     });
   });
 
@@ -554,16 +650,17 @@
   }
 
   function stopAllLoops() {
-    stopFastLoop('player');
-    stopFastLoop('opponent');
-    clearInterval(state.timers.opponentAI);
-    state.timers.opponentAI = null;
+    if (state.timers.global) { clearInterval(state.timers.global); state.timers.global = null; }
+    clearInterval(state.timers.playerFast); state.timers.playerFast = null;
+    clearInterval(state.timers.opponentFast); state.timers.opponentFast = null;
+    clearInterval(state.timers.opponentAI); state.timers.opponentAI = null;
   }
 
   function startAllLoops() {
-    startFastLoop('player');
-    startFastLoop('opponent');
-    startOpponentAI();
+    if (!state.active) return;
+    initSchedules();
+    if (state.timers.global) { clearInterval(state.timers.global); }
+    state.timers.global = setInterval(onTick, TICK_MS);
   }
 
   function performSwitch(nextIndex) {
