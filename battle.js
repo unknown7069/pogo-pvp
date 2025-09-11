@@ -250,7 +250,23 @@
     }
   }
 
-  // Attempt to hydrate state on load
+  // On first navigation to this page, reset any prior saved battle state
+  (function resetStateOnFirstLoad(){
+    try {
+      const navEntries = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : null;
+      const nav = navEntries && navEntries[0];
+      const isNavigate = nav ? nav.type === 'navigate' : (performance && performance.navigation ? performance.navigation.type === performance.navigation.TYPE_NAVIGATE : true);
+      if (isNavigate) {
+        const cur = readState();
+        if (cur && cur[PERSIST_KEY]) {
+          delete cur[PERSIST_KEY];
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(cur));
+        }
+      }
+    } catch (_) { /* ignore */ }
+  })();
+
+  // Attempt to hydrate state on load (only if not cleared above)
   restoreBattleStateIfPresent();
 
   const state = {
