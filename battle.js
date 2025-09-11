@@ -63,8 +63,7 @@
   // Type effectiveness (Pokemon GO-style)
   // ---------------------------
   // Uses 1.6x for super-effective and 0.625x for not-very-effective.
-  // No neutral cancellation: if one type is weak and another resists, we favor 1.6x.
-  const NO_NEUTRAL_CANCELLATION = true;
+  // True neutral cancellation: weakness × resistance = 1.0.
   const SE_MULT = 1.6;
   const NV_MULT = 0.625;
   const IMM_MULT = NV_MULT * NV_MULT; // GO treats immunities as extra-strong resists (~0.390625)
@@ -107,11 +106,6 @@
       if (chart.strong && chart.strong.includes(dt)) seCount += 1;
       else if (chart.weak && chart.weak.includes(dt)) nvCount += 1;
       else if (chart.immune && chart.immune.includes(dt)) immCount += 1;
-    }
-
-    if (NO_NEUTRAL_CANCELLATION && (seCount > 0) && (nvCount > 0 || immCount > 0)) {
-      // Favor super effective when there is a mix of weakness and resistance
-      return SE_MULT;
     }
 
     // Otherwise apply multiplicative stacking like GO
