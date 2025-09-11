@@ -178,7 +178,8 @@
       energy: 0,
       cp: cpFromStats(stats),
       fast: fastFromId(fastId),
-      charged: charged.length ? charged : [ chargedFromId('body_slam') ],
+      // Allow zero charged moves; UI will leave those slots blank
+      charged: charged,
     };
   }
 
@@ -516,9 +517,20 @@
   function refreshMoveButtons() {
     moveButtons.forEach((btn, i) => {
       const move = player.charged[i];
-      if (!move) return;
+      const container = btn.parentElement;
+      const labelEl = container && container.querySelector('.move-label');
+      if (!move) {
+        // No charged move in this slot: hide the button and clear the label
+        if (btn) {
+          btn.style.display = 'none';
+          btn.disabled = true;
+        }
+        if (labelEl) labelEl.textContent = '';
+        return;
+      }
+      // Ensure visible when there is a move
+      if (btn) btn.style.display = '';
       // Update label element under the button
-      const labelEl = btn.parentElement && btn.parentElement.querySelector('.move-label');
       if (labelEl) labelEl.textContent = labelForCharged(move);
       // Enable when battle active, controls enabled, no charge already queued, and enough energy
       const isQueued = state.schedule && state.schedule.player && state.schedule.player.pendingChargedIndex != null;
