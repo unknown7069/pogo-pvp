@@ -67,9 +67,10 @@
   }
   function chargedFromId(id) {
     const m = CHARGED_BY_ID && CHARGED_BY_ID[id];
-    if (!m) return { name: 'Charged', energy: 50, dmg: 80, chargeUpMs: 1500, type: 'normal' };
-    const chargeUpMs = Number(m.chargeUpTime || 1) * 500; // 500ms units
-    return { name: m.name, energy: Number(m.energyCost||0), dmg: Number(m.power||0), chargeUpMs, type: m.type };
+    if (!m) return { name: 'Charged', energy: 50, dmg: 80, coolDownMs: 1500, type: 'normal' };
+    const coolDownUnits = Number(m.coolDownTime || 1);
+    const coolDownMs = coolDownUnits * 500; // 500ms units
+    return { name: m.name, energy: Number(m.energyCost||0), dmg: Number(m.power||0), coolDownMs, type: m.type };
   }
 
   // ---------------------------
@@ -417,15 +418,15 @@
     state.charging[side] = true;
     stopFastLoop(side);
     refreshMoveButtons();
-    // Resolve after chargeUp
+    // Apply damage immediately, then enforce cooldown where fast moves are paused
+    applyDamage(defender, move.dmg);
     setTimeout(() => {
-      if (!state.active) return;
-      applyDamage(defender, move.dmg);
+      // Always clear cooldown flag even if battle paused/switched
       state.charging[side] = false;
-      // Resume autos
-      startFastLoop(side);
+      // Resume fast loop only if battle is active
+      if (state.active) startFastLoop(side);
       refreshMoveButtons();
-    }, move.chargeUpMs);
+    }, move.coolDownMs);
   }
 
   function opponentAIThink() {
