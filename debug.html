@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Debug: Move Balance</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
+    h1 { margin: 0 0 12px; }
+    .controls { display:flex; gap: 8px; align-items:center; flex-wrap: wrap; margin-bottom: 12px; }
+    .section { margin-bottom: 28px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #e2e2e2; padding: 6px 8px; text-align: left; font-size: 13px; }
+    th { background: #f6f6f6; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .delta-pos { color: #0f8a0f; }
+    .delta-neg { color: #b00020; }
+  </style>
+  <script src="pokemon-data.js"></script>
+</head>
+<body>
+  <h1>Move Balance Debug</h1>
+
+  <div class="section">
+    <h2>Fast Moves</h2>
+    <div class="controls">
+      <button type="button" id="btnFast">Compute Fast Move Scores</button>
+    </div>
+    <div id="fastTableWrap"></div>
+  </div>
+
+  <div class="section">
+    <h2>Charged Moves</h2>
+    <div class="controls">
+      <label>Target <input id="chargedTarget" type="number" value="100" min="1" step="1" style="width:80px"></label>
+      <button type="button" id="btnCharged">Compute Charged Move Scores</button>
+    </div>
+    <div id="chargedTableWrap"></div>
+  </div>
+
+  <script>
+    (function(){
+      const PD = window.PokemonData;
+      function fastRows() {
+        return (PD.FAST_MOVES || []).map(m => {
+          const raw = (Number(m.power || 0) + Number(m.energyGain || 0)) * Number(m.attackRate || 1);
+          const score = Number(raw.toFixed(2));
+          const rank = Number(m.rank || 1);
+          const expected = Number((100 * (1 + 0.1 * (rank - 1))).toFixed(2));
+          const delta = Number((score - expected).toFixed(2));
+          return { id: m.id, name: m.name, type: m.type, power: m.power, energyGain: m.energyGain, attackRate: m.attackRate, rank, expected, score, delta };
+        });
+      }
+
+      function chargedRows(target) {
+        const tgt = typeof target === 'number' ? target : 100;
+        return (PD.CHARGED_MOVES || []).map(m => {
+          const power = Number(m.power || 0);
+          const energyCost = Math.max(1, Number(m.energyCost || 1));
+          const tUnits = Math.max(1, Number(m.chargeUpTime || 1)); // 500ms units
+          const dpe = power / energyCost;
+          const dpsPerSec = (power * 2) / tUnits; // per second
+          const raw = dpe * (100 / tUnits) * 2;
+          const score = Number(raw.toFixed(2));
+          const rank = Number(m.rank || 1);
+          const expected = Number((tgt * (1 + 0.1 * (rank - 1))).toFixed(2));
+          const delta = Number((score - expected).toFixed(2));
+          return { id: m.id, name: m.name, type: m.type, power, energyCost, chargeUpTimeUnits: tUnits, rank, expected, dpe: Number(dpe.toFixed(2)), dpsPerSec: Number(dpsPerSec.toFixed(2)), score, delta };
+        });
+      }
+
+      function renderTable(container, rows) {
+        const wrap = typeof container === 'string' ? document.getElementById(container) : container;
+        if (!wrap) return;
+        const cols = Object.keys(rows[0] || {});
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const trh = document.createElement('tr');
+        cols.forEach(c => { const th = document.createElement('th'); th.textContent = c; trh.appendChild(th); });
+        thead.appendChild(trh);
+        const tbody = document.createElement('tbody');
+        rows.forEach(r => {
+          const tr = document.createElement('tr');
+          cols.forEach(c => {
+            const td = document.createElement('td');
+            const v = r[c];
+            td.textContent = v;
+            if (typeof v === 'number') td.classList.add('mono');
+            if (c === 'delta') td.classList.add(v >= 0 ? 'delta-pos' : 'delta-neg');
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        wrap.innerHTML = '';
+        wrap.appendChild(table);
+      }
+
+      document.getElementById('btnFast').addEventListener('click', () => {
+        const rows = fastRows();
+        renderTable('fastTableWrap', rows);
+        if (console && console.table) console.table(rows);
+      });
+      document.getElementById('btnCharged').addEventListener('click', () => {
+        const tgt = Number(document.getElementById('chargedTarget').value || 100);
+        const rows = chargedRows(tgt);
+        renderTable('chargedTableWrap', rows);
+        if (console && console.table) console.table(rows);
+      });
+
+      // Expose in console as window.Debug
+      window.Debug = {
+        fastMoveRows: fastRows,
+        chargedMoveRows: chargedRows,
+      };
+    })();
+  </script>
+</body>
+</html>
