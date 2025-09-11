@@ -119,35 +119,39 @@
   // ---------------------------
   // Battle state
   // ---------------------------
-  // Prefer team from URL param (fallback to stored AppState)
-  let selectedTeam = [];
-  let hasTeam = false;
-  try {
-    const qs = new URLSearchParams(window.location.search);
-    const teamParam = qs.get('team');
-    if (teamParam) {
-      const decoded = decodeURIComponent(teamParam);
-      selectedTeam = decoded.split(',').map(s => s.trim()).filter(Boolean);
-      hasTeam = selectedTeam.length > 0;
-      if (window.AppState && typeof window.AppState.set === 'function') {
-        window.AppState.set('selectedTeam', selectedTeam);
-      }
-    } else {
-      selectedTeam = (window.AppState && window.AppState.get('selectedTeam')) || [];
-      hasTeam = Array.isArray(selectedTeam) && selectedTeam.length > 0;
-    }
-  } catch (_) {
-    selectedTeam = (window.AppState && window.AppState.get('selectedTeam')) || [];
-    hasTeam = Array.isArray(selectedTeam) && selectedTeam.length > 0;
+  // Read team and battle selection from localStorage; if missing, return to start
+  const STORAGE_KEY = 'pogo-pvp-state';
+  function readState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) { return {}; }
   }
-  const selectedBattle = (window.AppState && window.AppState.get('selectedBattle')) || { index: 7, label: 'Opponent' };
+  function writeState(patch) {
+    try {
+      const cur = readState();
+      const next = Object.assign({}, cur, patch);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch (_) { /* ignore */ }
+  }
+
+  const __state = readState();
+  const selectedTeam = Array.isArray(__state.selectedTeam) ? __state.selectedTeam : null;
+  const selectedBattle = (__state.selectedBattle && typeof __state.selectedBattle.index === 'number' && __state.selectedBattle.label)
+    ? __state.selectedBattle
+    : null;
+  if (!selectedTeam || selectedTeam.length === 0 || !selectedBattle) {
+    // Required info missing; send player back to start screen
+    window.location.replace('index.html');
+    return;
+  }
 
   const opponentIdx = Number(selectedBattle.index || 0);
 
   function calcCp(idx){ return 200 + ((idx * 37) % 2500); }
 
   // Build player's team (up to 3), instantiate each Pokémon once
-  const teamNames = Array.isArray(selectedTeam) && selectedTeam.length ? selectedTeam : ['Pokemon 1', '2', '3'];
+  const teamNames = selectedTeam;
   const playerTeam = teamNames.map((name) => {
     const idx = parseIndexFromName(name);
     const poke = makePokemon(idx, name);
@@ -158,7 +162,7 @@
   let activePlayerIndex = 0;
   let player = playerTeam[activePlayerIndex].pokemon;
   // Build opponent's team (3 mons) based on selected stage index
-  const oppLabel = selectedBattle.label || 'Opponent';
+  const oppLabel = selectedBattle.label;
   const oppSeeds = [opponentIdx, opponentIdx + 1, opponentIdx + 2];
   const opponentTeam = oppSeeds.map((seed, i) => {
     const poke = makePokemon(seed, oppLabel + ' ' + (i + 1));
@@ -199,16 +203,15 @@
 
   function persistBattleState() {
     try {
-      if (window.AppState && typeof window.AppState.set === 'function') {
-        window.AppState.set(PERSIST_KEY, snapshotBattleState());
-      }
+      const cur = readState();
+      cur[PERSIST_KEY] = snapshotBattleState();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cur));
     } catch (_) { /* ignore storage errors */ }
   }
 
   function restoreBattleStateIfPresent() {
     try {
-      if (!(window.AppState && typeof window.AppState.get === 'function')) return false;
-      const saved = window.AppState.get(PERSIST_KEY);
+      const saved = readState()[PERSIST_KEY];
       if (!saved || typeof saved !== 'object') return false;
       if (Number(saved.stageIndex) !== Number(opponentIdx)) return false;
       // Validate team matches
@@ -440,23 +443,10 @@
       timestamp: Date.now(),
     };
     try {
-      if (window.AppState && typeof window.AppState.set === 'function') {
-        window.AppState.set('lastBattleResult', result);
-        if (typeof window.AppState.remove === 'function') {
-          window.AppState.remove(PERSIST_KEY);
-        }
-      }
-    } catch (_) { /* ignore storage errors */ }
-    // Fallback: write directly to localStorage to guard against wrapper issues
-    try {
-      const STORAGE_KEY = 'pogo-pvp-state';
-      let stateObj = {};
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        stateObj = raw ? JSON.parse(raw) : {};
-      } catch (_) { stateObj = {}; }
-      stateObj.lastBattleResult = result;
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj)); } catch (_) {}
+      const cur = readState();
+      cur.lastBattleResult = result;
+      delete cur[PERSIST_KEY];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cur));
     } catch (_) { /* ignore storage errors */ }
     // Trigger fade and let finish animation show briefly
     fadeToBlack(500);
@@ -667,13 +657,14 @@
       // No Pokémon left on opponent => win battle
       showResult('win');
       try {
-        if (window.AppState && typeof window.AppState.get === 'function' && typeof window.AppState.set === 'function') {
-          const sel = window.AppState.get('selectedBattle') || {};
-          const idx = Number(sel.index || 0);
-          const prev = Number(window.AppState.get('rocketUnlocked', 1)) || 1;
-          const next = Math.max(prev, idx + 2);
-          const capped = Math.min(next, 6);
-          if (capped !== prev) window.AppState.set('rocketUnlocked', capped);
+        const cur = readState();
+        const idx = Number((cur.selectedBattle && cur.selectedBattle.index) || opponentIdx || 0);
+        const prev = Number(cur.rocketUnlocked || 1) || 1;
+        const next = Math.max(prev, idx + 2);
+        const capped = Math.min(next, 6);
+        if (capped !== prev) {
+          cur.rocketUnlocked = capped;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(cur));
         }
       } catch (_) { /* ignore storage errors */ }
       concludeBattle('win');
@@ -688,19 +679,6 @@
     startAllLoops();
   }
 
-  // Handle missing team: show error overlay and block battle
-  const noTeamOverlay = $('noTeamOverlay');
-  const noTeamBackBtn = $('noTeamBackBtn');
-  if (noTeamBackBtn) {
-    noTeamBackBtn.addEventListener('click', () => {
-      window.location.href = 'rocket-select.html';
-    });
-  }
-
-  if (hasTeam) {
-    startCountdown();
-  } else {
-    setControlsDisabled(true);
-    if (noTeamOverlay) noTeamOverlay.classList.add('show');
-  }
+  // We have valid state if we reached here; start countdown
+  startCountdown();
 })();

@@ -58,9 +58,25 @@
 
       let workingTeam = [];
 
+      function readState() {
+        try {
+          const raw = localStorage.getItem('pogo-pvp-state');
+          return raw ? JSON.parse(raw) : {};
+        } catch (_) { return {}; }
+      }
+
+      function writeState(patch) {
+        try {
+          const state = readState();
+          const next = Object.assign({}, state, patch);
+          localStorage.setItem('pogo-pvp-state', JSON.stringify(next));
+        } catch (_) { /* ignore */ }
+      }
+
       function loadExisting() {
-        const saved = window.AppState && window.AppState.get('selectedTeam', []);
-        if (Array.isArray(saved)) workingTeam = saved.slice(0, MAX_TEAM);
+        const state = readState();
+        const saved = Array.isArray(state.selectedTeam) ? state.selectedTeam : [];
+        workingTeam = saved.slice(0, MAX_TEAM);
         updateSlots();
         updateGridSelection();
       }
@@ -129,12 +145,9 @@
       });
       doneBtn.addEventListener('click', () => {
         const finalTeam = workingTeam.slice(0, MAX_TEAM);
-        if (window.AppState && typeof window.AppState.set === 'function') {
-          window.AppState.set('selectedTeam', finalTeam);
-        }
-        // Also pass selection via query string as a robust fallback
-        const teamParam = encodeURIComponent(finalTeam.join(','));
-        window.location.href = `battle.html?team=${teamParam}`;
+        writeState({ selectedTeam: finalTeam });
+        // Navigate directly; team is in localStorage now
+        window.location.href = 'battle.html';
       });
 
       // Enable click-and-drag scrolling using shared helper

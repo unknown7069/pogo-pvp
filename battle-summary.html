@@ -34,7 +34,13 @@
     (function(){
       function setText(el, text){ if (el) el.textContent = text; }
       // Read only from stored result; do not fall back to URL
-      const r = (window.AppState && window.AppState.get('lastBattleResult')) || null;
+      function readState() {
+        try {
+          const raw = localStorage.getItem('pogo-pvp-state');
+          return raw ? JSON.parse(raw) : {};
+        } catch (_) { return {}; }
+      }
+      const r = readState().lastBattleResult || null;
       const titleEl = document.getElementById('summaryTitle');
       const detailEl = document.getElementById('summaryDetail');
       const backBtn = document.getElementById('backBtn');

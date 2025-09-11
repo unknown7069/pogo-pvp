@@ -51,15 +51,22 @@
 
       renderGrid();
 
+      function writeState(patch) {
+        try {
+          const raw = localStorage.getItem('pogo-pvp-state');
+          const state = raw ? JSON.parse(raw) : {};
+          const next = Object.assign({}, state, patch);
+          localStorage.setItem('pogo-pvp-state', JSON.stringify(next));
+        } catch (_) { /* ignore */ }
+      }
+
       // Navigate to detail on click
       grid.addEventListener('click', (e) => {
         const btn = e.target.closest('.pokemon-btn');
         if (!btn) return;
         const name = btn.dataset.name;
         const index = Number(btn.dataset.index || 0);
-        if (window.AppState && typeof window.AppState.set === 'function') {
-          window.AppState.set('viewPokemon', { name, index });
-        }
+        writeState({ viewPokemon: { name, index } });
         window.location.href = 'pokemon-detail.html';
       });
 

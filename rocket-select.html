@@ -245,15 +245,29 @@
         window.UI.attachDragScroll(list);
       }
 
+      function readState() {
+        try {
+          const raw = localStorage.getItem('pogo-pvp-state');
+          return raw ? JSON.parse(raw) : {};
+        } catch (_) { return {}; }
+      }
+
+      function writeState(patch) {
+        try {
+          const state = readState();
+          const next = Object.assign({}, state, patch);
+          localStorage.setItem('pogo-pvp-state', JSON.stringify(next));
+        } catch (_) { /* ignore */ }
+      }
+
       function getUnlockedCount() {
-        const n = (window.AppState && Number(window.AppState.get(PROGRESS_KEY, 1))) || 1;
+        const state = readState();
+        const n = Number(state[PROGRESS_KEY] || 1) || 1;
         return Math.max(1, Math.min(n, STAGES.length));
       }
 
       function setUnlockedCount(n) {
-        if (window.AppState && typeof window.AppState.set === 'function') {
-          window.AppState.set(PROGRESS_KEY, Math.max(1, Math.min(Number(n||1), STAGES.length)));
-        }
+        writeState({ [PROGRESS_KEY]: Math.max(1, Math.min(Number(n||1), STAGES.length)) });
       }
 
       function render() {
@@ -295,15 +309,11 @@
           const all = unlockToggle.checked;
           if (all) {
             // Save previous progression to restore later
-            if (window.AppState && typeof window.AppState.set === 'function') {
-              window.AppState.set('rocketUnlockedPrev', getUnlockedCount());
-            }
+            writeState({ rocketUnlockedPrev: getUnlockedCount() });
             setUnlockedCount(STAGES.length);
           } else {
-            const prev = (window.AppState && Number(window.AppState.get('rocketUnlockedPrev', 1))) || 1;
-            if (window.AppState && typeof window.AppState.remove === 'function') {
-              window.AppState.remove('rocketUnlockedPrev');
-            }
+            const prev = Number(readState().rocketUnlockedPrev || 1) || 1;
+            writeState({ rocketUnlockedPrev: undefined });
             setUnlockedCount(prev);
           }
           render();
@@ -320,11 +330,7 @@
         if (!btn || btn.classList.contains('locked')) return;
         const index = Number(btn.dataset.index || 0);
         const label = btn.querySelector('.title')?.textContent?.trim() || 'Opponent';
-        if (window.AppState && typeof window.AppState.set === 'function') {
-          window.AppState.set('selectedBattle', { index, label });
-          window.AppState.set('selectedStageId', btn.dataset.id);
-          window.AppState.set('teamSelectMode', true); // entering team select mode from battle
-        }
+        writeState({ selectedBattle: { index, label }, selectedStageId: btn.dataset.id });
         window.location.href = 'team-select.html';
       });
     

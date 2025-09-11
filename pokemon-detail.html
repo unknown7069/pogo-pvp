@@ -152,7 +152,14 @@
         window.UI.attachDragScroll(page);
       }
 
-      const data = (window.AppState && window.AppState.get('viewPokemon')) || { name: 'Pokemon 1', index: 0 };
+      function readState() {
+        try {
+          const raw = localStorage.getItem('pogo-pvp-state');
+          return raw ? JSON.parse(raw) : {};
+        } catch (_) { return {}; }
+      }
+      const state = readState();
+      const data = state.viewPokemon || { name: 'Pokemon 1', index: 0 };
 
       // Synthetic demo data based on index
       const idx = Number(data.index || 0);
