@@ -11,6 +11,7 @@
     { id: 'vine_whip',     name: 'Vine Whip',     power: 8, energyGain: 7, attackRate: 1, type: 'grass',   rank: 1 },
     { id: 'ember',         name: 'Ember',         power: 7, energyGain: 7, attackRate: 2, type: 'fire',    rank: 1 },
     { id: 'water_gun',     name: 'Water Gun',     power: 7, energyGain: 8, attackRate: 1, type: 'water',   rank: 1 },
+    { id: 'lick',          name: 'Lick',          power: 6, energyGain: 9, attackRate: 0.5, type: 'ghost',  rank: 1 },
   ]);
   const FAST_MOVES_BY_ID = Object.freeze(Object.fromEntries(FAST_MOVES.map(m => [m.id, m])));
   const FAST_MOVE_IDS = FAST_MOVES.map(m => m.id);
@@ -28,6 +29,8 @@
     { id: 'sludge_bomb',  name: 'Sludge Bomb',  power: 80, energyCost: 50, coolDownTime: 1.5, specialEffects: 'none', type: 'poison', rank: 2 },
     { id: 'power_whip',   name: 'Power Whip',   power: 90, energyCost: 50, coolDownTime: 1.5, specialEffects: 'none', type: 'grass',  rank: 3 },
     { id: 'water_pulse',  name: 'Water Pulse',  power: 70, energyCost: 60, coolDownTime: 2, specialEffects: 'none', type: 'water',  rank: 1 },
+    { id: 'earthquake',   name: 'Earthquake',   power: 120, energyCost: 65, coolDownTime: 2, specialEffects: 'none', type: 'ground', rank: 3 },
+    { id: 'superpower',   name: 'Superpower',   power: 85, energyCost: 40, coolDownTime: 1, specialEffects: 'none', type: 'fighting', rank: 2 },
   ]);
   const CHARGED_MOVES_BY_ID = Object.freeze(Object.fromEntries(CHARGED_MOVES.map(m => [m.id, m])));
   const CHARGED_MOVE_IDS = CHARGED_MOVES.map(m => m.id);
@@ -63,6 +66,16 @@
       baseStats: { hp: 44, attack: 48, defense: 65, spAttack: 50, spDefense: 64, speed: 43 },
       fastMoves: ['water_gun'],
       chargedMoves: ['water_pulse','hydro_pump'],
+    },
+    143: {
+      id: 143,
+      name: 'Snorlax',
+      types: ['normal'],
+      // Main-series base stats
+      baseStats: { hp: 160, attack: 110, defense: 65, spAttack: 65, spDefense: 110, speed: 30 },
+      // Use existing move definitions in this build
+      fastMoves: ['lick'],
+      chargedMoves: ['body_slam','earthquake','superpower'],
     },
   };
 
