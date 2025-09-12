@@ -48,7 +48,8 @@
     calcGoAttack: Stats.calcGoAttack,
     calcGoDefense: Stats.calcGoDefense,
     calcGoSpeed: Stats.calcGoSpeed,
+    calcCpMultiplier: Stats.calcCpMultiplier,
+    calcGoCp: Stats.calcGoCp,
     getGoStatsById,
   };
 })(window);
-

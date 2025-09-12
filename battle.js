@@ -142,11 +142,6 @@
   // ---------------------------
   // Pokemon factories
   // ---------------------------
-  function cpFromStats(stats) {
-    const a = Number(stats.attack||0), d = Number(stats.defense||0), h = Number(stats.hp||0);
-    return Math.max(10, Math.round((a + d) * 2 + h * 0.5));
-  }
-
   function makePokemonFromId(id) {
     const mon = (PD.byId && PD.byId.get) ? PD.byId.get(Number(id)) : null;
     if (!mon) {
@@ -159,6 +154,7 @@
         maxHP,
         hp: maxHP,
         energy: 0,
+        energyRate: 1,
         cp: 500,
         fast: fastFromId('quick_attack'),
         charged: [ chargedFromId('body_slam'), chargedFromId('rock_slide'), chargedFromId('aqua_tail') ],
@@ -176,7 +172,10 @@
       maxHP,
       hp: maxHP,
       energy: 0,
-      cp: cpFromStats(stats),
+      cp: (PD.calcGoCp ? PD.calcGoCp(stats) : (function(s){ const a = Number(s.attack||0), d = Number(s.defense||0), h = Number(s.hp||0); return Math.max(10, Math.round((a + d) * 2 + h * 0.5)); })(stats)),
+      // Scale fast-move energy gain by GO speed: (speed / 100) * energyGain
+      // Store as a per-Pokémon multiplier to apply on each fast move.
+      energyRate: (Number((stats && stats.speed) || 100) / 100),
       fast: fastFromId(fastId),
       // Allow zero charged moves; UI will leave those slots blank
       charged: charged,
@@ -296,7 +295,8 @@
         if (!m) return;
         m.fainted = !!s.fainted;
         m.pokemon.hp = clamp(Number(s.hp || m.pokemon.hp), 0, m.pokemon.maxHP);
-        m.pokemon.energy = clamp(Number(s.energy || 0), 0, 100);
+        // Ensure integer energy when restoring
+        m.pokemon.energy = Math.floor(clamp(Number(s.energy || 0), 0, 100));
       });
       // Apply opponent team
       (saved.opponentTeam || []).forEach((s, i) => {
@@ -304,7 +304,8 @@
         if (!m) return;
         m.fainted = !!s.fainted;
         m.pokemon.hp = clamp(Number(s.hp || m.pokemon.hp), 0, m.pokemon.maxHP);
-        m.pokemon.energy = clamp(Number(s.energy || 0), 0, 100);
+        // Ensure integer energy when restoring
+        m.pokemon.energy = Math.floor(clamp(Number(s.energy || 0), 0, 100));
       });
       // Restore active indices
       if (typeof saved.activePlayerIndex === 'number') activePlayerIndex = Math.max(0, Math.min(saved.activePlayerIndex, playerTeam.length - 1));
@@ -553,11 +554,15 @@
   const TICK_MS = 500;
 
   function grantEnergy(p, amount) {
-    p.energy = clamp(p.energy + amount, 0, ENERGY_CAP);
+    // Keep energy as an integer: clamp to [0, ENERGY_CAP] then floor
+    const next = clamp(Number(p.energy || 0) + Number(amount || 0), 0, ENERGY_CAP);
+    p.energy = Math.floor(next);
   }
 
   function spendEnergy(p, cost) {
-    p.energy = clamp(p.energy - cost, 0, ENERGY_CAP);
+    // Keep energy as an integer: clamp to [0, ENERGY_CAP] then floor
+    const next = clamp(Number(p.energy || 0) - Number(cost || 0), 0, ENERGY_CAP);
+    p.energy = Math.floor(next);
   }
 
   function fastTicksFor(move) {
@@ -684,7 +689,7 @@
         playerSE = mult > 1;
         playerNVE = mult < 1;
         const stab = stabMultiplier(playerAction.move.type, player.types);
-        dmgToOpponent += Math.max(0, Math.round(base * mult * stab));
+        dmgToOpponent += Math.max(0, Math.floor(base * mult * stab));
         pEnergyDelta -= Number(playerAction.move.energy || 0);
       } else {
         const base = Number(playerAction.move.dmg || 0);
@@ -692,8 +697,9 @@
         playerSE = mult > 1;
         playerNVE = mult < 1;
         const stab = stabMultiplier(playerAction.move.type, player.types);
-        dmgToOpponent += Math.max(0, Math.round(base * mult * stab));
-        pEnergyDelta += Number(playerAction.move.energyGain || 0);
+        dmgToOpponent += Math.max(0, Math.floor(base * mult * stab));
+        // Apply speed-based energy rate scaling for fast moves, rounded down to integer
+        pEnergyDelta += Math.floor(Number(playerAction.move.energyGain || 0) * Number(player.energyRate || 1));
       }
     }
     if (opponentAction) {
@@ -703,7 +709,7 @@
         opponentSE = mult > 1;
         opponentNVE = mult < 1;
         const stab = stabMultiplier(opponentAction.move.type, opponent.types);
-        dmgToPlayer += Math.max(0, Math.round(base * mult * stab));
+        dmgToPlayer += Math.max(0, Math.floor(base * mult * stab));
         oEnergyDelta -= Number(opponentAction.move.energy || 0);
       } else {
         const base = Number(opponentAction.move.dmg || 0);
@@ -711,8 +717,9 @@
         opponentSE = mult > 1;
         opponentNVE = mult < 1;
         const stab = stabMultiplier(opponentAction.move.type, opponent.types);
-        dmgToPlayer += Math.max(0, Math.round(base * mult * stab));
-        oEnergyDelta += Number(opponentAction.move.energyGain || 0);
+        dmgToPlayer += Math.max(0, Math.floor(base * mult * stab));
+        // Apply speed-based energy rate scaling for fast moves, rounded down to integer
+        oEnergyDelta += Math.floor(Number(opponentAction.move.energyGain || 0) * Number(opponent.energyRate || 1));
       }
     }
 
