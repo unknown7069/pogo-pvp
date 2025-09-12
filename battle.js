@@ -771,9 +771,16 @@
   }
 
   // Small nudge animation towards the center for fast attacks
+  // Duration scales with the active Pokemon's fast move attackRate
   function triggerLunge(side) {
     const img = side === 'player' ? playerSpriteImg : oppSpriteImg;
     if (!img) return;
+    const actor = side === 'player' ? player : opponent;
+    const rateSec = (actor && actor.fast && Number(actor.fast.attackRate)) || 0.5; // seconds per attack
+    // Map attack period to animation duration as a fraction of the period.
+    // 0.5s -> ~175ms, 1.0s -> ~350ms, 1.5s -> ~525ms, 2.0s -> ~700ms
+    const durationMs = Math.max(160, Math.round(rateSec * 350));
+    try { img.style.setProperty('--lunge-duration', `${durationMs}ms`); } catch (_) {}
     const cls = side === 'player' ? 'lunge-player' : 'lunge-opponent';
     // Restart animation reliably
     img.classList.remove(cls);

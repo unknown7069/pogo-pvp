@@ -82,9 +82,9 @@
     /* Counteract container flip for opponent so front sprite isn't mirrored, include scale */
     .sprite.opponent img { transform: scaleX(-1) scale(1.5); }
 
-    /* Fast-attack lunge animations */
-    .sprite img.lunge-player { animation: player-lunge 180ms ease-out; }
-    .sprite img.lunge-opponent { animation: opponent-lunge 180ms ease-out; }
+    /* Fast-attack lunge animations (duration scales with attackRate) */
+    .sprite img.lunge-player { animation: player-lunge var(--lunge-duration, 180ms) ease-out; }
+    .sprite img.lunge-opponent { animation: opponent-lunge var(--lunge-duration, 180ms) ease-out; }
     @keyframes player-lunge {
       0% { transform: scale(2.5) translateX(0); }
       50% { transform: scale(2.5) translateX(18%); }
