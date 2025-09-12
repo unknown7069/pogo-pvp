@@ -52,10 +52,41 @@
           const btn = document.createElement('button');
           btn.className = 'pokemon-btn';
           btn.type = 'button';
-          btn.textContent = mon.name;
           btn.dataset.id = String(mon.id);
           btn.dataset.name = mon.name;
           btn.setAttribute('aria-pressed', 'false');
+
+          // Compute CP from GO stats
+          let cp = 10;
+          try {
+            const stats = PD.getGoStatsById ? PD.getGoStatsById(mon.id) : null;
+            cp = PD.calcGoCp && stats ? PD.calcGoCp(stats) : 10;
+          } catch (_) { /* ignore */ }
+
+          // Get sprite URL from central helper
+          const imgUrl = PD.getForwardSpriteUrl ? PD.getForwardSpriteUrl(mon) : '';
+
+          // Top: CP
+          const cpEl = document.createElement('div');
+          cpEl.className = 'cp';
+          cpEl.textContent = `CP ${cp}`;
+
+          // Middle: sprite
+          const spriteWrap = document.createElement('div');
+          spriteWrap.className = 'sprite-wrap';
+          const img = document.createElement('img');
+          img.className = 'sprite';
+          img.src = imgUrl;
+          img.alt = `${mon.name} sprite`;
+          spriteWrap.appendChild(img);
+
+          // Bottom: name
+          const nameEl = document.createElement('div');
+          nameEl.className = 'name';
+          nameEl.textContent = mon.name;
+
+          btn.append(cpEl, spriteWrap, nameEl);
+
           buttonsById.set(Number(mon.id), btn);
           frag.appendChild(btn);
         });

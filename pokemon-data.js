@@ -30,10 +30,40 @@
     };
   }
 
+  // Slugify a Pokémon species name to match pokemondb naming.
+  function slugifyName(name) {
+    const s = String(name || '').toLowerCase().trim();
+    return s
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  // Build a forward-facing static sprite URL (PNG).
+  function getForwardSpriteUrl(monOrName) {
+    const name = typeof monOrName === 'string' ? monOrName : (monOrName && monOrName.name) || '';
+    const slug = slugifyName(name);
+    return `https://img.pokemondb.net/sprites/black-white/normal/${slug}.png`;
+  }
+
+  // Build animated battle sprite URL (front/back) for Gen5 style.
+  function getBattleSpriteUrl(monOrName, side) {
+    const name = typeof monOrName === 'string' ? monOrName : (monOrName && monOrName.name) || '';
+    const slug = slugifyName(name);
+    if (String(side) === 'player') {
+      return `https://img.pokemondb.net/sprites/black-white/anim/back-normal/${slug}.gif`;
+    }
+    return `https://img.pokemondb.net/sprites/black-white/anim/normal/${slug}.gif`;
+  }
+
   global.PokemonData = {
     all,
     byId,
     getPokemonById,
+    slugifyName,
+    getForwardSpriteUrl,
+    getBattleSpriteUrl,
     // Moves
     FAST_MOVE_IDS: MovesFast.FAST_MOVE_IDS || [],
     CHARGED_MOVE_IDS: MovesCharged.CHARGED_MOVE_IDS || [],

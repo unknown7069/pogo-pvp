@@ -425,23 +425,7 @@
   const oppSpriteImg = document.getElementById('opponent-sprite-img');
   const playerSpriteImg = document.getElementById('player-sprite-img');
 
-  // Build PokemonDB sprite URLs from name
-  function slugifyPokemonName(name) {
-    const s = String(name || '').toLowerCase().trim();
-    // Replace any non-alphanumeric with hyphen, collapse repeats, trim hyphens
-    return s
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '') // strip diacritics
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  }
-  function spriteUrlFor(name, side) {
-    const slug = slugifyPokemonName(name);
-    if (side === 'player') {
-      return `https://img.pokemondb.net/sprites/black-white/anim/back-normal/${slug}.gif`;
-    }
-    return `https://img.pokemondb.net/sprites/black-white/anim/normal/${slug}.gif`;
-  }
+  // Build PokemonDB sprite URLs from centralized helper
   const oppEffectSlot = document.getElementById('opponent-effect-slot');
   const playerEffectSlot = document.getElementById('player-effect-slot');
 
@@ -464,8 +448,8 @@
     if (playerCpEl) playerCpEl.textContent = `CP ${player.cp}`;
     renderTypes(playerTypesEl, player.types);
     // Update sprites
-    const oppUrl = spriteUrlFor(opponent.name, 'opponent');
-    const playerUrl = spriteUrlFor(player.name, 'player');
+    const oppUrl = PD.getBattleSpriteUrl(opponent.name, 'opponent');
+    const playerUrl = PD.getBattleSpriteUrl(player.name, 'player');
     if (oppSpriteImg) {
       oppSpriteImg.src = oppUrl;
       oppSpriteImg.alt = opponent.name;
