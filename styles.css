@@ -76,38 +76,59 @@ body {
   cursor: grab; /* desktop drag hint */
 }
 
-.pokemon-btn {
+.pokemon-card {
   width: 100%;
-  /* Slightly taller than wide */
   aspect-ratio: 9 / 10;
+  position: relative;
+  min-width: 0; /* allow children to ellipsize */
+}
+
+.pokemon-btn {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   border: 1px solid #d0d0d0;
   border-radius: 10px;
   background: #fff;
   color: #111;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px;
-  gap: 4px;
+  display: block; /* overlay sprite background */
+  overflow: hidden;
+  text-align: center;
   transition: background 0.15s, transform 0.05s;
 }
 .pokemon-btn:active { background: #f0f0f0; transform: scale(0.996); }
 .pokemon-btn.selected { outline: 3px solid #007aff; outline-offset: -3px; }
 
-/* Card content inside pokemon buttons */
-.pokemon-btn .cp {
-  font-size: 12px;
+/* Card content overlays (outside the button, inside container) */
+.pokemon-card .cp {
+  font-size: 11px;
   font-weight: 700;
   color: #555;
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  z-index: 2;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.1;
 }
 
 .pokemon-btn .sprite-wrap {
-  flex: 1 1 auto;
-  width: 100%;
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 1;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
 }
 
 .pokemon-btn .sprite {
@@ -117,10 +138,22 @@ body {
   image-rendering: auto;
 }
 
-.pokemon-btn .name {
-  font-size: 14px;
+.pokemon-card .name {
+  font-size: 12px;
   font-weight: 700;
   color: #111;
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  right: 6px;
+  z-index: 2;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.1;
 }
 
 /* Shared bottom-centered close (X) control */

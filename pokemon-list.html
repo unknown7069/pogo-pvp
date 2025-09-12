@@ -36,10 +36,15 @@
       const PD = window.PokemonData || {};
       const grid = document.getElementById('pokemonGrid');
       const list = Array.isArray(PD.all) && PD.all.length ? PD.all : [];
+      // Toggle sprite rendering in the grid
+      const SHOW_SPRITES = true;
 
       function renderGrid() {
         grid.innerHTML = '';
         list.forEach((mon) => {
+          const card = document.createElement('div');
+          card.className = 'pokemon-card';
+
           const btn = document.createElement('button');
           btn.className = 'pokemon-btn';
           btn.type = 'button';
@@ -56,27 +61,28 @@
           // Get sprite URL from central helper
           const imgUrl = PD.getForwardSpriteUrl ? PD.getForwardSpriteUrl(mon) : '';
 
-          // Top: CP
+          // Top: CP (overlay inside container)
           const cpEl = document.createElement('div');
           cpEl.className = 'cp';
           cpEl.textContent = `CP ${cp}`;
 
-          // Middle: sprite
-          const spriteWrap = document.createElement('div');
-          spriteWrap.className = 'sprite-wrap';
-          const img = document.createElement('img');
-          img.className = 'sprite';
-          img.src = imgUrl;
-          img.alt = `${mon.name} sprite`;
-          spriteWrap.appendChild(img);
-
-          // Bottom: name
+          // Bottom: name (overlay inside container)
           const nameEl = document.createElement('div');
           nameEl.className = 'name';
           nameEl.textContent = mon.name;
 
-          btn.append(cpEl, spriteWrap, nameEl);
-          grid.appendChild(btn);
+          if (SHOW_SPRITES && imgUrl) {
+            const spriteWrap = document.createElement('div');
+            spriteWrap.className = 'sprite-wrap';
+            spriteWrap.style.backgroundImage = `url('${imgUrl}')`;
+            btn.appendChild(spriteWrap);
+          }
+
+          // Compose container: button + overlays
+          card.appendChild(btn);
+          card.appendChild(cpEl);
+          card.appendChild(nameEl);
+          grid.appendChild(card);
         });
       }
 

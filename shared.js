@@ -106,4 +106,5 @@
       el.removeEventListener('click', onClickCapture, true);
     };
   };
+
 })(window);
