@@ -14,6 +14,14 @@
     { id: 'water_pulse',  name: 'Water Pulse',  power: 70, energyCost: 60, coolDownTime: 2, specialEffects: 'none', type: 'water',  rank: 1 },
     { id: 'earthquake',   name: 'Earthquake',   power: 120, energyCost: 65, coolDownTime: 2, specialEffects: 'none', type: 'ground', rank: 3 },
     { id: 'superpower',   name: 'Superpower',   power: 85, energyCost: 40, coolDownTime: 1, specialEffects: 'none', type: 'fighting', rank: 2 },
+    { id: 'thunder_punch',name: 'Thunder Punch',power: 55, energyCost: 40, coolDownTime: 1, specialEffects: 'none', type: 'electric', rank: 2 },
+    { id: 'wild_charge',  name: 'Wild Charge',  power: 100, energyCost: 50, coolDownTime: 1.5, specialEffects: 'none', type: 'electric', rank: 3 },
+    { id: 'play_rough',   name: 'Play Rough',   power: 90, energyCost: 50, coolDownTime: 1.5, specialEffects: 'none', type: 'fairy', rank: 3 },
+    { id: 'aerial_ace',   name: 'Aerial Ace',   power: 55, energyCost: 45, coolDownTime: 1, specialEffects: 'none', type: 'flying', rank: 2 },
+    { id: 'psychic',      name: 'Psychic',      power: 90, energyCost: 55, coolDownTime: 1.5, specialEffects: 'none', type: 'psychic', rank: 3 },
+    { id: 'ice_beam',     name: 'Ice Beam',     power: 90, energyCost: 55, coolDownTime: 1.5, specialEffects: 'none', type: 'ice', rank: 3 },
+    { id: 'dragon_claw',  name: 'Dragon Claw',  power: 60, energyCost: 35, coolDownTime: 1, specialEffects: 'none', type: 'dragon', rank: 2 },
+    { id: 'x_scissor',    name: 'X-Scissor',    power: 65, energyCost: 40, coolDownTime: 1, specialEffects: 'none', type: 'bug', rank: 2 },
   ]);
   const CHARGED_MOVES_BY_ID = Object.freeze(Object.fromEntries(CHARGED_MOVES.map(m => [m.id, m])));
   const CHARGED_MOVE_IDS = CHARGED_MOVES.map(m => m.id);
@@ -24,4 +32,3 @@
     CHARGED_MOVE_IDS,
   };
 })(window);
-
