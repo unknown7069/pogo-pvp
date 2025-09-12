@@ -17,9 +17,10 @@
 
   </style>
 </head>
-<body>
-  <div class="phone phone-column">
-    <div class="pokemon-grid" id="pokemonGrid"></div>
+  <body>
+    <div class="phone phone-column">
+      <div class="list-header"><span id="pokemonCount">Pokemon 0/0</span></div>
+      <div class="pokemon-grid" id="pokemonGrid"></div>
     <div class="bottom-close">
       <button class="close-btn" id="closeBtn" type="button" aria-label="Close">&times;</button>
     </div>
@@ -30,14 +31,21 @@
   <script src="pokemon-species.js"></script>
   <script src="pokemon-stats.js"></script>
   <script src="pokemon-data.js"></script>
-  <script src="shared.js"></script>
-  <script>
-    (function(){
-      const PD = window.PokemonData || {};
-      const grid = document.getElementById('pokemonGrid');
-      const list = Array.isArray(PD.all) && PD.all.length ? PD.all : [];
-      // Toggle sprite rendering in the grid
-      const SHOW_SPRITES = true;
+      <script src="shared.js"></script>
+      <script>
+        (function(){
+          const PD = window.PokemonData || {};
+          const grid = document.getElementById('pokemonGrid');
+          const list = Array.isArray(PD.all) && PD.all.length ? PD.all : [];
+          // Toggle sprite rendering in the grid
+          const SHOW_SPRITES = true;
+
+          // Header count: unlocked/total (unlocked currently unimplemented; default 0)
+          const countEl = document.getElementById('pokemonCount');
+          const unlocked = (window.AppState && typeof AppState.get === 'function')
+            ? (Number(AppState.get('unlockedCount', 0)) || 0)
+            : 0;
+          if (countEl) countEl.textContent = `Pokemon ${unlocked}/${list.length}`;
 
       function renderGrid() {
         grid.innerHTML = '';
