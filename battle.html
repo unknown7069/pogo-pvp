@@ -12,7 +12,7 @@
 
     /* Page background image (covers entire phone page) */
     .phone.phone-column {
-      background: #000 url('battle_background.jpg') center / cover no-repeat;
+      background: #000 url('img/battle_background.png') center / cover no-repeat;
     }
 
     /* Stage area sits on top; let page background show through */
@@ -32,8 +32,7 @@
     .trainer-side.opponent { order: 2; justify-content: flex-end; }
 
     .hp-card { background: rgba(0,0,0,0.6); border: none; border-radius: 8px; padding: 8px 10px; width: 100%; max-width: 260px; min-width: 0; box-shadow: none; }
-    .hp-name-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; font-weight:700; }
-    .hp-name-row { color:#fff; }
+    .hp-name-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; font-weight:700; color:#fff; }
     .hp-name-row .left { display:flex; align-items:center; gap:8px; min-width:0; }
     .hp-name-row .name { font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; }
     .hp-name-row .cp { font-weight:800; color:#fff; font-size:12px; }
@@ -65,39 +64,37 @@
 
     /* Sprites and platforms in the middle stage */
     .sprite { position:absolute; width:min(42%, 240px); height:min(42%, 240px); display:flex; align-items:center; justify-content:center; border-radius:50%; background: transparent; border: none; box-shadow: none; z-index: 1; overflow: visible; }
-    .sprite.opponent { right: 6%; top: 6%; transform: scaleX(-1); }
+    .sprite.opponent { right: 6%; top: 10%; transform: scaleX(-1); }
     .sprite.player { left: 6%; bottom: 10%; }
 
     .platform { position:absolute; width:38%; height:20%; background: radial-gradient(ellipse at center, rgba(0,0,0,0.22), rgba(0,0,0,0)); pointer-events:none; z-index: 0; }
     .platform.opponent { right: 3%; top: 22%; }
-    .platform.player { left: 3%; bottom: 12%; }
 
     /* Floating hit text (e.g., Super Effective!) */
-    .effect-text { position:absolute; top:-18px; left:50%; transform: translateX(-50%) translateY(0); background: transparent; color:#fff; font-weight:800; font-size:12px; padding: 2px 6px; border-radius: 6px; opacity: 1; pointer-events:none; transition: opacity 600ms ease, transform 600ms ease; will-change: opacity, transform; white-space: nowrap; z-index: 2; min-width: 180px; text-align: center; }
-    .effect-text.fade { opacity: 0.4; transform: translateX(-50%) translateY(-10px); }
+    .effect-text { position:absolute; top:0; left:50%; transform: translateX(-50%) translateY(0); background: transparent; color:#fff; font-weight:800; font-size:12px; padding: 2px 6px; border-radius: 6px; opacity: 1; pointer-events:none; transition: opacity 600ms ease, transform 600ms ease; will-change: opacity, transform; white-space: nowrap; z-index: 2; min-width: 180px; text-align: center; }
+    .effect-text.fade { opacity: 0.4; transform: translateX(-50%) translateY(-2px); }
     /* Keep opponent text upright despite parent mirror */
     .sprite.opponent .effect-text { transform: translateX(-50%) translateY(0) scaleX(-1); }
-    .sprite.opponent .effect-text.fade { transform: translateX(-50%) translateY(-10px) scaleX(-1); }
-    .effect-text.fade { opacity: 0.4; }
+    .sprite.opponent .effect-text.fade { transform: translateX(-50%) translateY(-2px) scaleX(-1); }
 
     /* Sprite <img> sizing */
-    .sprite img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: auto; pointer-events: none; }
-    /* Counteract container flip for opponent so front sprite isn't mirrored */
-    .sprite.opponent img { transform: scaleX(-1); }
+    .sprite img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: auto; pointer-events: none; transform: scale(2); }
+    /* Counteract container flip for opponent so front sprite isn't mirrored, include scale */
+    .sprite.opponent img { transform: scaleX(-1) scale(2); }
 
     /* Fast-attack lunge animations */
     .sprite img.lunge-player { animation: player-lunge 180ms ease-out; }
     .sprite img.lunge-opponent { animation: opponent-lunge 180ms ease-out; }
     @keyframes player-lunge {
-      0% { transform: translateX(0); }
-      50% { transform: translateX(18%); }
-      100% { transform: translateX(0); }
+      0% { transform: scale(2) translateX(0); }
+      50% { transform: scale(2) translateX(18%); }
+      100% { transform: scale(2) translateX(0); }
     }
     /* Include scaleX(-1) to preserve opponent facing during animation */
     @keyframes opponent-lunge {
-      0% { transform: scaleX(-1) translateX(0); }
-      50% { transform: scaleX(-1) translateX(-18%); }
-      100% { transform: scaleX(-1) translateX(0); }
+      0% { transform: scaleX(-1) scale(2) translateX(0); }
+      50% { transform: scaleX(-1) scale(2) translateX(-18%); }
+      100% { transform: scaleX(-1) scale(2) translateX(0); }
     }
 
     /* Bottom action area with three circular moves */
@@ -224,7 +221,6 @@
         <div class="sprite opponent" aria-label="Opponent Pokemon">
           <img id="opponent-sprite-img" alt="Opponent Pokémon" />
         </div>
-        <div class="platform player"></div>
         <div class="sprite player" aria-label="Your Pokemon">
           <img id="player-sprite-img" alt="Your Pokémon" />
         </div>
