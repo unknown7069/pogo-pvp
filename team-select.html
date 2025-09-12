@@ -134,11 +134,45 @@
         for (let i = 0; i < MAX_TEAM; i++) {
           const slot = slots[i];
           const id = workingTeam[i];
+          // Reset slot contents each update
+          slot.textContent = '';
+
           if (typeof id === 'number') {
-            slot.textContent = getNameById(id);
+            // Try to show a forward-facing sprite, fallback to name
+            const mon = (PD.getPokemonById ? PD.getPokemonById(id) : (PD.byId && PD.byId.get ? PD.byId.get(Number(id)) : null));
+            const name = (mon && mon.name) || getNameById(id);
+
+            let showedImage = false;
+            if (mon && typeof PD.getForwardSpriteUrl === 'function') {
+              try {
+                const url = PD.getForwardSpriteUrl(mon);
+                if (url) {
+                  const img = document.createElement('img');
+                  img.className = 'slot-img';
+                  img.alt = name;
+                  img.decoding = 'async';
+                  img.loading = 'lazy';
+                  img.draggable = false;
+                  img.src = url;
+                  img.addEventListener('error', () => {
+                    // Fallback to text name if image fails to load
+                    if (slot.contains(img)) slot.removeChild(img);
+                    slot.textContent = name;
+                  });
+                  slot.appendChild(img);
+                  showedImage = true;
+                }
+              } catch (_) { /* ignore */ }
+            }
+
+            if (!showedImage) {
+              slot.textContent = name;
+            }
+            slot.title = name;
             slot.classList.add('filled');
           } else {
-            slot.textContent = 'Empty';
+            slot.textContent = '';
+            slot.removeAttribute('title');
             slot.classList.remove('filled');
           }
         }

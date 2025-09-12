@@ -234,6 +234,14 @@ body {
   background: #fff;
 }
 
+/* Sprite inside selected slots */
+.team-select-page .slot .slot-img {
+  max-height: 56px;
+  max-width: 100%;
+  object-fit: contain;
+  image-rendering: auto;
+}
+
 .team-select-page .pokemon-grid {
   margin-top: var(--gap);
 }
