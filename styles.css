@@ -67,6 +67,7 @@ body {
   grid-template-columns: repeat(3, 1fr);
   grid-auto-rows: auto; /* let cards define height */
   gap: var(--gap);
+  align-content: start; /* prevent rows from stretching and creating large gaps */
   /* fill available space and allow internal scroll */
   flex: 1 1 auto;
   min-height: 0;
@@ -81,6 +82,13 @@ body {
   aspect-ratio: 9 / 10;
   position: relative;
   min-width: 0; /* allow children to ellipsize */
+}
+
+/* Ensure consistent intrinsic height for grid items so rows are uniform */
+.pokemon-card::before {
+  content: "";
+  display: block;
+  padding-top: calc(100% * 10 / 9); /* height = width * (10/9) */
 }
 
 .pokemon-btn {
