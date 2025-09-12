@@ -17,6 +17,11 @@
     .delta-pos { color: #0f8a0f; }
     .delta-neg { color: #b00020; }
   </style>
+  <script src="pokemon-types.js"></script>
+  <script src="pokemon-moves-fast.js"></script>
+  <script src="pokemon-moves-charged.js"></script>
+  <script src="pokemon-species.js"></script>
+  <script src="pokemon-stats.js"></script>
   <script src="pokemon-data.js"></script>
 </head>
 <body>
@@ -78,7 +83,7 @@
           const tUnits = Math.max(1, Number(m.coolDownTime || 1));
           const dpe = power / energyCost;
           const dpsPerSec = power / tUnits; // per second
-          const score = math.Round(dpe * dpsPerSec / 75 * 100); // scale to ~100
+          const score = Math.round(dpe * dpsPerSec / 75 * 100); // scale to ~100
           const rank = Number(m.rank || 1);
           const expected = Number((tgt * (1 + 0.1 * (rank - 1))).toFixed(2));
           const delta = Number((score - expected).toFixed(2));
