@@ -6,6 +6,7 @@
   <title>Debug: Move Balance</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
+    body, .phone { background: #fff; color: #000; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
     h1 { margin: 0 0 12px; }
     .controls { display:flex; gap: 8px; align-items:center; flex-wrap: wrap; margin-bottom: 12px; }
@@ -52,12 +53,12 @@
           const power = Number(m.power || 0);
           const energyGain = Number(m.energyGain || 0);
           const rate = Number(m.attackRate || 1); // interpreted as attacks per second
-          const dpsPerSec = Number((power * rate).toFixed(2));
-          const epsPerSec = Number((energyGain * rate).toFixed(2));
-          const raw = (power + energyGain) * rate;
+          const dpsPerSec = Number((power / rate).toFixed(2));
+          const epsPerSec = Number((energyGain / rate).toFixed(2));
+          const raw = (power + energyGain) / rate;
           const score = Number(raw.toFixed(2));
           const rank = Number(m.rank || 1);
-          const expected = Number((7 * (1 + 0.1 * (rank - 1))).toFixed(2));
+          const expected = Number(20) * (1 + 0.04 * ((rate - 0.5) / 0.5)) * (1 + 0.1 * (rank - 1));
           const delta = Number((score - expected).toFixed(2));
           return {
             id: m.id,
