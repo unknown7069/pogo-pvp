@@ -18,15 +18,15 @@
     return byId.get(key) || null;
   }
 
-  function getGoStatsById(id) {
+  function getGoStatsById(id, level) {
     const mon = getPokemonById(id);
     if (!mon) return null;
     const bs = mon.baseStats;
     return {
-      hp: Stats.calcGoHp ? Stats.calcGoHp(bs) : 10,
-      attack: Stats.calcGoAttack ? Stats.calcGoAttack(bs) : 10,
-      defense: Stats.calcGoDefense ? Stats.calcGoDefense(bs) : 10,
-      speed: Stats.calcGoSpeed ? Stats.calcGoSpeed(bs) : 10,
+      hp: Stats.calcGoHp ? Stats.calcGoHp(bs, level) : 10,
+      attack: Stats.calcGoAttack ? Stats.calcGoAttack(bs, level) : 10,
+      defense: Stats.calcGoDefense ? Stats.calcGoDefense(bs, level) : 10,
+      speed: Stats.calcGoSpeed ? Stats.calcGoSpeed(bs, level) : 10,
     };
   }
 

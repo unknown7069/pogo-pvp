@@ -18,20 +18,27 @@
       padding: 24px 16px 64px;
       border-bottom: 1px solid #e5e5e5;
     }
-    .cp-label { text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #0b5db7; }
-    .cp-value { text-align: center; font-size: 28px; font-weight: 800; margin-top: 6px; color: #0b5db7; }
+    .cp-label { text-align: center; font-weight: 700; letter-spacing: 0.5px; color: #000; }
+    .cp-value { text-align: center; font-size: 28px; font-weight: 800; margin-top: 6px; color: #000; }
+    /* Put CP label and value on one line */
+    .cp-row { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
+    .cp-row .cp-value { margin-top: 0; }
+    /* Reserve vertical space for the portrait so name/meta don't crowd CP */
+    .portrait-spacer { height: var(--portrait-spacer, 148px); }
     .portrait {
-      position: static;
-      margin: 16px auto 0;
-      width: 128px; height: 128px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 35% 35%, #ffffff, #d9ecff);
-      border: 4px solid rgba(255,255,255,0.85);
-      box-shadow: 0 10px 28px rgba(0,0,0,0.15);
+      position: absolute;
+      left: 50%;
+      /* top set dynamically to midpoint between CP and name */
+      transform: translate(-50%, -50%);
+      margin: 0;
+      width: auto; height: auto;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 800; color: #0b5db7;
+      background: transparent; border: none; border-radius: 0; box-shadow: none;
+      z-index: 1;
     }
-    .name-row { margin-top: 12px; text-align: center; font-size: 22px; font-weight: 800; color: #0b5db7; }
+    /* Sprite inside portrait */
+    .portrait img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: auto; transform: scale(2); transform-origin: center center; }
+    .name-row { margin-top: 12px; text-align: center; font-size: 22px; font-weight: 800; color: #000; }
     .meta-row { margin-top: 6px; text-align: center; color: #1f2d3d; font-size: 13px; opacity: 0.85; }
 
     /* Type chips */
@@ -73,46 +80,45 @@
     .power { font-weight:800; }
 
     /* close button styles are shared in styles.css */
+    /* Stats layout: four numbers in a single row with grey labels below */
+    .stats-row { display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: center; margin-top: 8px; }
+    .stat-col .value { font-weight: 800; }
   </style>
   </head>
 <body>
   <div class="phone phone-column">
     <div class="detail-wrap">
       <div class="top-card">
-        <div class="cp-label">CP</div>
-        <div class="cp-value" id="cpValue">1234</div>
-        <div class="portrait" id="portrait">PKMN</div>
+        <div class="cp-row">
+          <div class="cp-label">CP</div>
+          <div class="cp-value" id="cpValue">1234</div>
+        </div>
+        <div class="portrait-spacer" aria-hidden="true"></div>
+        <div class="portrait" id="portrait" aria-label="Pokémon portrait"></div>
         <div class="name-row" id="nameRow">Pokemon</div>
-        <div class="meta-row" id="metaRow">Lvl 20 • HP 100 / 100</div>
+        <div class="meta-row" id="metaRow">Lvl 20</div>
         <div class="types" id="typeChips"></div>
       </div>
 
       <div class="content" id="content">
         <div class="card">
-          <div class="row">
-            <div>
-              <div class="label">HP</div>
-              <div class="value" id="hpValue">100 / 100</div>
-            </div>
-            <div style="flex:1"></div>
-          </div>
-          <div class="hp-bar"><div class="hp-fill" id="hpFill"></div></div>
-        </div>
-
-        <div class="card">
           <div class="label">Stats</div>
-          <div class="iv">
-            <div class="stat">
-              <div class="label">Atk</div>
-              <div class="bar"><div class="fill" id="atkFill"></div></div>
+          <div class="stats-row">
+            <div class="stat-col">
+              <div class="value" id="statHp">—</div>
+              <div class="label">HP</div>
             </div>
-            <div class="stat">
-              <div class="label">Def</div>
-              <div class="bar"><div class="fill" id="defFill"></div></div>
+            <div class="stat-col">
+              <div class="value" id="statAtk">—</div>
+              <div class="label">Attack</div>
             </div>
-            <div class="stat">
-              <div class="label">Sta</div>
-              <div class="bar"><div class="fill" id="staFill"></div></div>
+            <div class="stat-col">
+              <div class="value" id="statDef">—</div>
+              <div class="label">Defense</div>
+            </div>
+            <div class="stat-col">
+              <div class="value" id="statSpd">—</div>
+              <div class="label">Speed</div>
             </div>
           </div>
         </div>
@@ -170,13 +176,12 @@
       const id = Number(view.id || 0) || (PD.all && PD.all[0] && PD.all[0].id) || 0;
       const mon = (PD.byId && PD.byId.get) ? PD.byId.get(id) : null;
       const name = (mon && mon.name) || (view.name || 'Pokemon');
-      const stats = (PD.getGoStatsById && id) ? PD.getGoStatsById(id) : { hp: 100, attack: 50, defense: 50 };
+      const level = 50; // placeholder level display
+      const stats = (PD.getGoStatsById && id) ? PD.getGoStatsById(id, level) : { hp: 100, attack: 50, defense: 50, speed: 50 };
       const hpMax = Math.max(1, Number(stats.hp || 100));
-      const hp = hpMax;
       const atk = Number(stats.attack || 50);
       const def = Number(stats.defense || 50);
-      const sta = Number(stats.hp || 50);
-      const level = 20; // placeholder level display
+      const spd = Number(stats.speed || 50);
       const types = (mon && mon.types) || [];
 
       // Moves from PokemonData
@@ -189,17 +194,66 @@
       // Populate UI
       const $ = (id) => document.getElementById(id);
       // Simple CP derivation for display purposes
-      const cp = Math.round((atk + def) * 2 + hpMax * 0.5);
+      const cp = PD.calcGoCp && stats ? PD.calcGoCp(stats) : 10;
       $('cpValue').textContent = cp;
-      $('portrait').textContent = name.slice(0, 4).toUpperCase();
+      // Animated sprite portrait (use battle sprite URLs with PNG fallback)
+      (function updatePortrait(){
+        const host = $('portrait');
+        if (!host) return;
+        host.textContent = '';
+        const img = document.createElement('img');
+        img.alt = name;
+        try {
+          const url = (PD.getBattleSpriteUrl ? PD.getBattleSpriteUrl(name, 'opponent') : null) || (PD.getForwardSpriteUrl ? PD.getForwardSpriteUrl(name) : '');
+          img.src = url;
+        } catch (_) {}
+        // Fallback to static forward-facing PNG if GIF fails
+        img.onerror = function(){
+          if (PD.getForwardSpriteUrl) img.src = PD.getForwardSpriteUrl(name);
+          img.onerror = null;
+        };
+        host.appendChild(img);
+
+        // Position the portrait centered between CP text and name text
+        function positionPortrait() {
+          const topCard = document.querySelector('.top-card');
+          const cpEl = document.querySelector('.cp-value');
+          const nameEl = document.getElementById('nameRow');
+          if (!topCard || !cpEl || !nameEl) return;
+          const rTop = topCard.getBoundingClientRect();
+          const rCp = cpEl.getBoundingClientRect();
+          const rName = nameEl.getBoundingClientRect();
+          const mid = ((rCp.bottom + rName.top) / 2) - rTop.top;
+          host.style.top = `${mid}px`;
+        }
+        // Initial position after layout and on resize
+        requestAnimationFrame(positionPortrait);
+        window.addEventListener('resize', positionPortrait);
+        // Reposition once sprite loads (in case fonts/layout shift)
+        img.addEventListener('load', () => requestAnimationFrame(positionPortrait), { once: true });
+      })();
       $('nameRow').textContent = name;
-      $('metaRow').textContent = `Lvl ${level} • HP ${hp} / ${hpMax}`;
-      $('hpValue').textContent = `${hp} / ${hpMax}`;
-      $('hpFill').style.width = `${Math.round((hp/hpMax)*100)}%`;
-      const pct = (v, max = 300) => String(Math.min(100, Math.round((Number(v||0) / max) * 100))) + '%';
-      $('atkFill').style.width = pct(atk);
-      $('defFill').style.width = pct(def);
-      $('staFill').style.width = pct(sta);
+      $('metaRow').textContent = `Lvl ${level}`;
+      // Fill numeric GO stats
+      const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      setTxt('statHp', hpMax);
+      setTxt('statAtk', atk);
+      setTxt('statDef', def);
+      setTxt('statSpd', spd);
+      // Top-card background gradient based on first type
+      (function updateTopGradient(){
+        const COLORS = {
+          normal:'#a8a77a', fire:'#ee8130', water:'#6390f0', electric:'#f7d02c', grass:'#7ac74c', ice:'#96d9d6',
+          fighting:'#c22e28', poison:'#a33ea1', ground:'#e2bf65', flying:'#a98ff3', psychic:'#f95587', bug:'#a6b91a',
+          rock:'#b6a136', ghost:'#735797', dragon:'#6f35fc', dark:'#705746', steel:'#b7b7ce', fairy:'#d685ad'
+        };
+        const topCard = document.querySelector('.top-card');
+        const t = (types && types[0] || '').toLowerCase();
+        const base = COLORS[t];
+        if (topCard && base) {
+          topCard.style.background = `linear-gradient(180deg, ${base} 0%, #ffffff 100%)`;
+        }
+      })();
       $('fastMove').textContent = (fastDef && fastDef.name) || 'Fast Move';
       $('chargeMove1').textContent = (ch1Def && ch1Def.name) || 'Charge Move 1';
       $('chargeMove2').textContent = (ch2Def && ch2Def.name) || 'Charge Move 2';
@@ -230,12 +284,9 @@
       // Power Up demo
       const powerBtn = document.getElementById('powerBtn');
       powerBtn.addEventListener('click', () => {
-        // Simple demo: bump CP and HP a bit
+        // Simple demo: bump CP a bit
         const newCp = Math.round(Number(document.getElementById('cpValue').textContent) * 1.05);
         document.getElementById('cpValue').textContent = newCp;
-        const fill = document.getElementById('hpFill');
-        const w = Math.min(100, parseInt(fill.style.width || '50', 10) + 5);
-        fill.style.width = w + '%';
       });
     })();
   </script>

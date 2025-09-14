@@ -1,31 +1,37 @@
 (function(global){
   // GO Stat conversion helpers (placeholder formulas)
   // Each takes a main-series baseStats object and returns a numeric value.
-  function calcGoHp(baseStats) {
+  function calcGoHp(baseStats, level) {
     if (!baseStats) return 10;
     const hp = Number(baseStats.hp || 10);
-    return Math.round(50 + hp * 1.75);
+    const mult = calcCpMultiplier(level);
+    return Math.round((40 + hp * 1.8) * mult);
   }
 
-  function calcGoAttack(baseStats) {
+  function calcGoAttack(baseStats, level) {
     if (!baseStats) return 10;
     const atk = Number(baseStats.attack || 10);
     const spa = Number(baseStats.spAttack || 10);
-    return Math.round(25 + (Math.max(atk, spa) * 7/8 + Math.min(atk, spa) * 1/8) * 2);
+    const mult = calcCpMultiplier(level);
+    const base = (10 + Math.max(atk, spa) * 7/8 + Math.min(atk, spa) * 1/8) * 2;
+    return Math.round(base * mult);
   }
 
-  function calcGoDefense(baseStats) {
+  function calcGoDefense(baseStats, level) {
     if (!baseStats) return 10;
     const def = Number(baseStats.defense || 10);
     const spd = Number(baseStats.spDefense || 10);
-    return Math.round(25 + (Math.max(def, spd) * 5/8 + Math.min(def, spd) * 3/8) * 2);
+    const mult = calcCpMultiplier(level);
+    const base = (10 + Math.max(def, spd) * 5/8 + Math.min(def, spd) * 3/8) * 2;
+    return Math.round(base * mult);
   }
 
-  function calcGoSpeed(baseStats) {
+  function calcGoSpeed(baseStats, level) {
     if (!baseStats) return 10;
     const spe = Number(baseStats.speed || 10);
-    // Placeholder: lightly scaled speed
-    return Math.round(100 + spe * 1.2);
+    const mult = calcCpMultiplier(level);
+    const base = (40 + spe) * 1.1;
+    return Math.round(base * mult);
   }
 
   // Static CP multipliers by level (sourced from GamePress)
@@ -146,16 +152,16 @@
   }
 
   // CP calculation from GO stats with level multiplier
-  // Expects an object with { attack, defense, hp, speed } and optional level
-  function calcGoCp(stats, level) {
+  // Subtract 20 from each stat to lower the CP for low-stat Pokémon.
+  // Use pow to increase the gap between low and high stat Pokémon.
+  function calcGoCp(stats) {
     if (!stats) return 10;
-    const a = Number(stats.attack || 0);
-    const d = Number(stats.defense || 0);
-    const h = Number(stats.hp || 0);
-    const s = Number(stats.speed || 100);
-    const base = (a + d) * 2 + h * 0.5 + s * 0.2;
-    const mult = calcCpMultiplier(typeof level === 'number' ? level : 20);
-    return Math.max(10, Math.round(base * mult));
+    const a = Number(stats.attack || 0) - 20;
+    const d = Number(stats.defense || 0) - 20;
+    const h = Number(stats.hp || 0) - 20;
+    const s = Number(stats.speed || 0) - 20;
+    const base = Math.pow(a * d * h * s, 0.5) / 5;
+    return Math.round(Math.max(10, base));
   }
 
   global.PokemonStats = {

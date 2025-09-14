@@ -156,12 +156,13 @@
         energy: 0,
         energyRate: 1,
         cp: 500,
+        stats: { hp: maxHP, attack: 50, defense: 50, speed: 50 },
         fast: fastFromId('quick_attack'),
         charged: [ chargedFromId('body_slam'), chargedFromId('rock_slide'), chargedFromId('aqua_tail') ],
       };
     }
-    const stats = PD.getGoStatsById ? PD.getGoStatsById(mon.id) : { hp: 100, attack: 50, defense: 50 };
-    const maxHP = Math.max(1, Number(stats.hp||100));
+    const stats = PD.getGoStatsById(mon.id, 20);
+    const maxHP = Math.max(1, Number(stats.hp || 100));
     const fastId = Array.isArray(mon.fastMoves) && mon.fastMoves[0];
     const chargedIds = Array.isArray(mon.chargedMoves) ? mon.chargedMoves : [];
     const charged = chargedIds.slice(0,3).map(chargedFromId);
@@ -172,10 +173,11 @@
       maxHP,
       hp: maxHP,
       energy: 0,
-      cp: (PD.calcGoCp ? PD.calcGoCp(stats) : (function(s){ const a = Number(s.attack||0), d = Number(s.defense||0), h = Number(s.hp||0); return Math.max(10, Math.round((a + d) * 2 + h * 0.5)); })(stats)),
+      cp: (PD.calcGoCp(stats)),
+      stats: stats,
       // Scale fast-move energy gain by GO speed: (speed / 100) * energyGain
       // Store as a per-Pokémon multiplier to apply on each fast move.
-      energyRate: (Number((stats && stats.speed) || 100) / 100),
+      energyRate: (Number(stats.speed) / 100),
       fast: fastFromId(fastId),
       // Allow zero charged moves; UI will leave those slots blank
       charged: charged,
@@ -226,6 +228,7 @@
     });
   } else {
     // Legacy fallback: map names to first N species in PD
+    // TODO - remove this fallback code
     const fallback = (ALL_SPECIES.length ? ALL_SPECIES : [{id:1,name:'Pokemon'},{id:4,name:'Pokemon'},{id:7,name:'Pokemon'}]);
     teamIds = selectedTeamNamesLegacy.map((_, i) => fallback[i % fallback.length].id);
     playerTeam = teamIds.map((id) => {
@@ -667,41 +670,31 @@
     }
 
     if (playerAction) {
+      const base = Number(playerAction.move.dmg * player.stats.attack / opponent.stats.defense || 0);
+      const mult = typeMultiplier(playerAction.move.type, opponent.types);
+      playerSE = mult > 1;
+      playerNVE = mult < 1;
+      const stab = stabMultiplier(playerAction.move.type, player.types);
+      dmgToOpponent += Math.floor(base * mult * stab);
+
       if (playerAction.kind === 'charged') {
-        const base = Number(playerAction.move.dmg || 0);
-        const mult = typeMultiplier(playerAction.move.type, opponent.types);
-        playerSE = mult > 1;
-        playerNVE = mult < 1;
-        const stab = stabMultiplier(playerAction.move.type, player.types);
-        dmgToOpponent += Math.max(0, Math.floor(base * mult * stab));
         pEnergyDelta -= Number(playerAction.move.energy || 0);
       } else {
-        const base = Number(playerAction.move.dmg || 0);
-        const mult = typeMultiplier(playerAction.move.type, opponent.types);
-        playerSE = mult > 1;
-        playerNVE = mult < 1;
-        const stab = stabMultiplier(playerAction.move.type, player.types);
-        dmgToOpponent += Math.max(0, Math.floor(base * mult * stab));
         // Apply speed-based energy rate scaling for fast moves, rounded down to integer
         pEnergyDelta += Math.floor(Number(playerAction.move.energyGain || 0) * Number(player.energyRate || 1));
       }
     }
     if (opponentAction) {
+      const base = Number(opponentAction.move.dmg * opponent.stats.attack / player.stats.defense || 0);
+      const mult = typeMultiplier(opponentAction.move.type, player.types);
+      opponentSE = mult > 1;
+      opponentNVE = mult < 1;
+      const stab = stabMultiplier(opponentAction.move.type, opponent.types);
+      dmgToPlayer += Math.floor(base * mult * stab);
+
       if (opponentAction.kind === 'charged') {
-        const base = Number(opponentAction.move.dmg || 0);
-        const mult = typeMultiplier(opponentAction.move.type, player.types);
-        opponentSE = mult > 1;
-        opponentNVE = mult < 1;
-        const stab = stabMultiplier(opponentAction.move.type, opponent.types);
-        dmgToPlayer += Math.max(0, Math.floor(base * mult * stab));
         oEnergyDelta -= Number(opponentAction.move.energy || 0);
       } else {
-        const base = Number(opponentAction.move.dmg || 0);
-        const mult = typeMultiplier(opponentAction.move.type, player.types);
-        opponentSE = mult > 1;
-        opponentNVE = mult < 1;
-        const stab = stabMultiplier(opponentAction.move.type, opponent.types);
-        dmgToPlayer += Math.max(0, Math.floor(base * mult * stab));
         // Apply speed-based energy rate scaling for fast moves, rounded down to integer
         oEnergyDelta += Math.floor(Number(opponentAction.move.energyGain || 0) * Number(opponent.energyRate || 1));
       }
@@ -755,6 +748,7 @@
     const playerFainted = player.hp <= 0;
     const opponentFainted = opponent.hp <= 0;
     if (playerFainted && opponentFainted) {
+      // TODO - Remove the tie outcome, instead let the player win
       concludeBattle('tie');
       return;
     }

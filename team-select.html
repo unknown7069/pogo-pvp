@@ -63,8 +63,9 @@
 
           // Compute CP from GO stats
           let cp = 10;
+          const level = 20;
           try {
-            const stats = PD.getGoStatsById ? PD.getGoStatsById(mon.id) : null;
+            const stats = PD.getGoStatsById ? PD.getGoStatsById(mon.id, level) : null;
             cp = PD.calcGoCp && stats ? PD.calcGoCp(stats) : 10;
           } catch (_) { /* ignore */ }
 
