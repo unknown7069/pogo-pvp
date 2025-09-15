@@ -58,11 +58,12 @@
     .energy-bar-wrap { position:relative; height:6px; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.6); border-radius:6px; overflow:hidden; margin-top:4px; }
     .energy-bar { position:absolute; inset:0 auto 0 0; width:var(--en,0%); background:linear-gradient(90deg,#00b4ff,#007aff); transition: width 200ms ease; }
     .hp-count { font-size:12px; opacity:0.8; margin-top:4px; display:flex; justify-content:space-between; align-items:center; }
+    .status-buff { font-size: 8px; font-weight: 1000; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.6); margin-right: 6px; }
     .pokemon-orbs { display:flex; gap:4px; margin-left:6px; }
     .pokemon-orbs .orb { width:10px; height:10px; border-radius:50%; background:#ddd; border:1px solid #333; }
     .pokemon-orbs .orb.active { background:#4caf50; }
 
-    /* Sprites and platforms in the middle stage */
+    /* Sprites in the middle stage */
     .sprite { position:absolute; width:min(42%, 240px); height:min(42%, 240px); display:flex; align-items:flex-end; justify-content:center; border-radius:50%; background: transparent; border: none; box-shadow: none; z-index: 1; overflow: visible; }
     /* Anchor sprites by their bottoms so differing image sizes align consistently */
     .sprite.opponent { right: -2%; bottom: 62%; top: auto; transform: scaleX(-1); }
@@ -178,6 +179,9 @@
             <div class="hp-count">
               <span><span id="opponent-hp-text" class="hp-hidden"></span></span>
               <span class="pokemon-orbs" aria-label="Opponent remaining Pokemon">
+                <span class="status-buff" id="opponent-attack-buff"></span>
+                <span class="status-buff" id="opponent-defence-buff"></span>
+                <span class="status-buff" id="opponent-speed-buff"></span>
                 <span class="orb active"></span>
                 <span class="orb active"></span>
                 <span class="orb active"></span>
@@ -206,6 +210,9 @@
             <div class="hp-count">
               <span><span id="player-hp-text" class="hp-hidden"></span></span>
               <span class="pokemon-orbs" aria-label="Your remaining Pokemon">
+                <span class="status-buff" id="player-attack-buff">x</span>
+                <span class="status-buff" id="player-defence-buff"></span>
+                <span class="status-buff" id="player-speed-buff"></span>
                 <span class="orb active"></span>
                 <span class="orb active"></span>
                 <span class="orb active"></span>

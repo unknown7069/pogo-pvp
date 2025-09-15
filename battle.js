@@ -21,6 +21,12 @@
   const playerText = $('player-hp-text');
   const oppEnBar = $('opponent-energy');
   const playerEnBar = $('player-energy');
+  const playerAttackBuffText = $('player-attack-buff');
+  const playerDefenceBuffText = $('player-defence-buff');
+  const playerSpeedBuffText = $('player-speed-buff');
+  const opponentAttackBuffText = $('opponent-attack-buff');
+  const opponentDefenceBuffText = $('opponent-defence-buff');
+  const opponentSpeedBuffText = $('opponent-speed-buff');
 
   const moveButtons = Array.from(document.querySelectorAll('.move-btn'));
 
@@ -146,7 +152,7 @@
     const mon = (PD.byId && PD.byId.get) ? PD.byId.get(Number(id)) : null;
     if (!mon) {
       // Fallback dummy
-      const maxHP = 100;
+      const maxHP = 1;
       return {
         id: Number(id)||0,
         name: 'Pokemon',
@@ -158,7 +164,10 @@
         cp: 500,
         stats: { hp: maxHP, attack: 50, defense: 50, speed: 50 },
         fast: fastFromId('quick_attack'),
-        charged: [ chargedFromId('body_slam'), chargedFromId('rock_slide'), chargedFromId('aqua_tail') ],
+        charged: [],
+        attackBuff: 0,
+        defenseBuff: 0,
+        speedBuff: 0,
       };
     }
     const stats = PD.getGoStatsById(mon.id, 20);
@@ -181,6 +190,9 @@
       fast: fastFromId(fastId),
       // Allow zero charged moves; UI will leave those slots blank
       charged: charged,
+      attackBuff: 0,
+      defenseBuff: 0,
+      speedBuff: 0,
     };
   }
 
@@ -485,6 +497,103 @@
     if (oppEnBar) setEn(oppEnBar, oPct);
   }
 
+  function getAttackBuff(target) {
+    return 1 + target.attackBuff;
+  }
+
+  function getDefenseBuff(target) {
+    return 1 + target.defenseBuff;
+  }
+
+  function getSpeedBuff(target) {
+    return 1 + target.speedBuff;
+  }
+
+  function updateBuffsUI() {
+    // player attack
+    if (player.attackBuff >= 1) {
+      playerAttackBuffText.textContent = 'A+' + player.attackBuff;
+      playerAttackBuffText.style.color = '#2ecc71';
+    } else if (player.attackBuff <= -1) {
+      playerAttackBuffText.textContent = 'A-' + player.attackBuff;
+      playerAttackBuffText.style.color = '#e74c3c';
+    } else {
+      playerAttackBuffText.textContent = '';
+      playerAttackBuffText.hidden = true;
+    }
+    // player defense
+    if (player.defenseBuff >= 1) {
+      playerDefenceBuffText.textContent = 'D+' + player.defenseBuff;
+      playerDefenceBuffText.style.color = '#2ecc71';
+    } else if (player.defenseBuff <= -1) {
+      playerDefenceBuffText.textContent = 'D-' + player.defenseBuff;
+      playerDefenceBuffText.style.color = '#e74c3c';
+    } else {
+      playerDefenceBuffText.textContent = '';
+      playerDefenceBuffText.hidden = true;
+    }
+    // player speed
+    if (player.speedBuff >= 1) {
+      playerSpeedBuffText.textContent = 'S+' + player.speedBuff;
+      playerSpeedBuffText.style.color = '#2ecc71';
+    } else if (player.speedBuff <= -1) {
+      playerSpeedBuffText.textContent = 'S-' + player.speedBuff;
+      playerSpeedBuffText.style.color = '#e74c3c';
+    } else {
+      playerSpeedBuffText.textContent = '';
+      playerSpeedBuffText.hidden = true;
+    }
+    // opponent attack
+    if (opponent.attackBuff >= 1) {
+      opponentAttackBuffText.textContent = 'A+' + opponent.attackBuff;
+      opponentAttackBuffText.style.color = '#2ecc71';
+    } else if (opponent.attackBuff <= -1) {
+      opponentAttackBuffText.textContent = 'A-' + opponent.attackBuff;
+      opponentAttackBuffText.style.color = '#e74c3c';
+    } else {
+      opponentAttackBuffText.textContent = '';
+      opponentAttackBuffText.hidden = true;
+    }
+    // opponent defense
+    if (opponent.defenseBuff >= 1) {
+      opponentDefenceBuffText.textContent = 'D+' + opponent.defenseBuff;
+      opponentDefenceBuffText.style.color = '#2ecc71';
+    } else if (opponent.defenseBuff <= -1) {
+      opponentDefenceBuffText.textContent = 'D-' + opponent.defenseBuff;
+      opponentDefenceBuffText.style.color = '#e74c3c';
+    } else {
+      opponentDefenceBuffText.textContent = '';
+      opponentDefenceBuffText.hidden = true;
+    }
+    // opponent speed
+    if (opponent.speedBuff >= 1) {
+      opponentSpeedBuffText.textContent = 'S+' + opponent.speedBuff;
+      opponentSpeedBuffText.style.color = '#2ecc71';
+    } else if (opponent.speedBuff <= -1) {
+      opponentSpeedBuffText.textContent = 'S-' + opponent.speedBuff;
+      opponentSpeedBuffText.style.color = '#e74c3c';
+    } else {
+      opponentSpeedBuffText.textContent = '';
+      opponentSpeedBuffText.hidden = true;
+    }
+  }
+
+  function updateBuffs() {
+    // Reduce buffs by 1 stage 
+    if (player.attackBuff > 0) player.attackBuff -= 1;
+    else if (player.attackBuff < 0) player.attackBuff += 1;
+    if (player.defenseBuff > 0) player.defenseBuff -= 1;
+    else if (player.defenseBuff < 0) player.defenseBuff += 1;
+    if (player.speedBuff > 0) player.speedBuff -= 1;
+    else if (player.speedBuff < 0) player.speedBuff += 1;
+    if (opponent.attackBuff > 0) opponent.attackBuff -= 1;
+    else if (opponent.attackBuff < 0) opponent.attackBuff += 1;
+    if (opponent.defenseBuff > 0) opponent.defenseBuff -= 1;
+    else if (opponent.defenseBuff < 0) opponent.defenseBuff += 1;
+    if (opponent.speedBuff > 0) opponent.speedBuff -= 1;
+    else if (opponent.speedBuff < 0) opponent.speedBuff += 1;
+  }
+
   // Flash floating text above sprites
   function flashEffectText(side, text) {
     const host = side === 'player' ? playerSpriteEl : oppSpriteEl;
@@ -670,7 +779,7 @@
     }
 
     if (playerAction) {
-      const base = Number(playerAction.move.dmg * player.stats.attack / opponent.stats.defense || 0);
+      const base = Number(playerAction.move.dmg * player.stats.attack * getAttackBuff(player) / opponent.stats.defense / getDefenseBuff(opponent) || 0);
       const mult = typeMultiplier(playerAction.move.type, opponent.types);
       playerSE = mult > 1;
       playerNVE = mult < 1;
@@ -681,11 +790,11 @@
         pEnergyDelta -= Number(playerAction.move.energy || 0);
       } else {
         // Apply speed-based energy rate scaling for fast moves, rounded down to integer
-        pEnergyDelta += Math.floor(Number(playerAction.move.energyGain || 0) * Number(player.energyRate || 1));
+        pEnergyDelta += Math.floor(Number(playerAction.move.energyGain || 0) * Number(player.energyRate || 1)) * getSpeedBuff(player);
       }
     }
     if (opponentAction) {
-      const base = Number(opponentAction.move.dmg * opponent.stats.attack / player.stats.defense || 0);
+      const base = Number(opponentAction.move.dmg * opponent.stats.attack * getAttackBuff(opponent) / player.stats.defense / getDefenseBuff(player) || 0);
       const mult = typeMultiplier(opponentAction.move.type, player.types);
       opponentSE = mult > 1;
       opponentNVE = mult < 1;
@@ -696,7 +805,7 @@
         oEnergyDelta -= Number(opponentAction.move.energy || 0);
       } else {
         // Apply speed-based energy rate scaling for fast moves, rounded down to integer
-        oEnergyDelta += Math.floor(Number(opponentAction.move.energyGain || 0) * Number(opponent.energyRate || 1));
+        oEnergyDelta += Math.floor(Number(opponentAction.move.energyGain || 0) * Number(opponent.energyRate || 1)) * getSpeedBuff(opponent);
       }
     }
 
@@ -743,6 +852,16 @@
         }
       }
     }
+
+    player.attackBuff += 1;
+
+    // Handle stat changes - only every second tick (1s) to reduce spam
+    if (state.tick % 2 === 0) {
+      updateBuffs();
+      updateBuffsUI();
+    }
+
+    // TODO - Handle manual switches 
 
     // Outcome checks (tie allowed)
     const playerFainted = player.hp <= 0;
@@ -899,6 +1018,17 @@
   }
 
   function performSwitch(nextIndex) {
+    if (nextIndex === activePlayerIndex) return;
+    if (nextIndex < 0 || nextIndex >= playerTeam.length) return;
+    if (playerTeam[nextIndex].fainted) return;
+    // TODO - animate current mon disappearing, a ball being thrown, and new mon entering by having the sprite grow from small to full size
+    // Use the following URLS for ball sprites 
+    // https://bulbapedia.bulbagarden.net/wiki/File:Pok%C3%A9_Ball_battle_V.png
+    // https://bulbapedia.bulbagarden.net/wiki/File:Premier_Ball_battle_V.png
+    // https://bulbapedia.bulbagarden.net/wiki/File:Great_Ball_battle_V.png
+    // https://bulbapedia.bulbagarden.net/wiki/File:Ultra_Ball_battle_V.png
+    // https://bulbapedia.bulbagarden.net/wiki/File:Master_Ball_battle_V.png
+
     // Close overlay and clear timers if any
     if (switchOverlay) switchOverlay.classList.remove('show');
     if (state.timers.switchCountdown) { clearInterval(state.timers.switchCountdown); state.timers.switchCountdown = null; }
