@@ -853,8 +853,6 @@
       }
     }
 
-    player.attackBuff += 1;
-
     // Handle stat changes - only every second tick (1s) to reduce spam
     if (state.tick % 2 === 0) {
       updateBuffs();
