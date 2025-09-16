@@ -199,22 +199,44 @@
   // ---------------------------
   // Battle state
   // ---------------------------
-  // Read team and battle selection from localStorage; if missing, return to start
-  const STORAGE_KEY = 'pogo-pvp-state';
+  // Read team and battle selection from centralized AppState; if missing, return to start
+  const store = window.AppState || null;
+
   function readState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch (_) { return {}; }
-  }
-  function writeState(patch) {
-    try {
-      const cur = readState();
-      const next = Object.assign({}, cur, patch);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch (_) { /* ignore */ }
+    if (store && typeof store.read === 'function') return store.read();
+    if (store && typeof store.all === 'function') return store.all();
+    return {};
   }
 
+  function writeState(patch) {
+    if (!patch || Object(patch) !== patch) return;
+    if (store && typeof store.write === 'function') { store.write(patch); return; }
+    if (store && typeof store.merge === 'function') { store.merge(patch); }
+  }
+
+  function setStateValue(key, value) {
+    if (!key) return;
+    if (store && typeof store.set === 'function') { store.set(key, value); return; }
+    const patch = {};
+    patch[key] = value;
+    writeState(patch);
+  }
+
+  function removeStateValue(key) {
+    if (!key) return;
+    if (store && typeof store.remove === 'function') { store.remove(key); return; }
+    const patch = {};
+    patch[key] = undefined;
+    writeState(patch);
+  }
+
+  function getStateValue(key, fallback) {
+    if (store && typeof store.get === 'function') return store.get(key, fallback);
+    const current = readState();
+    return Object.prototype.hasOwnProperty.call(current, key)
+      ? current[key]
+      : (arguments.length > 1 ? fallback : null);
+  }
   const __state = readState();
   const selectedTeamIds = Array.isArray(__state.selectedTeamIds) ? __state.selectedTeamIds : null;
   const selectedTeamNamesLegacy = Array.isArray(__state.selectedTeam) ? __state.selectedTeam : null;
@@ -297,15 +319,13 @@
 
   function persistBattleState() {
     try {
-      const cur = readState();
-      cur[PERSIST_KEY] = snapshotBattleState();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cur));
+      setStateValue(PERSIST_KEY, snapshotBattleState());
     } catch (_) { /* ignore storage errors */ }
   }
 
   function restoreBattleStateIfPresent() {
     try {
-      const saved = readState()[PERSIST_KEY];
+      const saved = getStateValue(PERSIST_KEY);
       if (!saved || typeof saved !== 'object') return false;
       if (Number(saved.stageIndex) !== Number(opponentIdx)) return false;
       // Validate team matches
@@ -349,11 +369,7 @@
       const nav = navEntries && navEntries[0];
       const isNavigate = nav ? nav.type === 'navigate' : (performance && performance.navigation ? performance.navigation.type === performance.navigation.TYPE_NAVIGATE : true);
       if (isNavigate) {
-        const cur = readState();
-        if (cur && cur[PERSIST_KEY]) {
-          delete cur[PERSIST_KEY];
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(cur));
-        }
+        removeStateValue(PERSIST_KEY);
       }
     } catch (_) { /* ignore */ }
   })();
@@ -965,10 +981,8 @@
       timestamp: Date.now(),
     };
     try {
-      const cur = readState();
-      cur.lastBattleResult = result;
-      delete cur[PERSIST_KEY];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cur));
+      setStateValue('lastBattleResult', result);
+      removeStateValue(PERSIST_KEY);
     } catch (_) { /* ignore storage errors */ }
     // Trigger fade and let finish animation show briefly
     fadeToBlack(500);
@@ -1201,8 +1215,7 @@
         const next = Math.max(prev, idx + 2);
         const capped = Math.min(next, 6);
         if (capped !== prev) {
-          cur.rocketUnlocked = capped;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(cur));
+          setStateValue('rocketUnlocked', capped);
         }
       } catch (_) { /* ignore storage errors */ }
       concludeBattle('win');
@@ -1220,3 +1233,9 @@
   // We have valid state if we reached here; start countdown
   startCountdown();
 })();
+
+
+
+
+
+

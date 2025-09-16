@@ -210,9 +210,9 @@
   </head>
 <body>
   <div class="phone rocket-theme">
-    <div class="battle-header">Battle!</div>
+    <div class="battle-header">Defeat Team Rocket!</div>
     <div class="battle-note">
-      <span>Defeat each member to unlock the next.</span>
+      <span></span>
       <label class="debug-toggle" title="Debug: unlock all stages">
         <input type="checkbox" id="unlockAllToggle" />
         Unlock all
@@ -225,6 +225,7 @@
     </div>
   </div>
   <script src="shared.js"></script>
+  <script src="saving.js"></script>
   <script>
     // Enable click-and-drag scrolling using shared helper
     (function() {
@@ -232,8 +233,8 @@
         { id:'grunt-male', name:'Rocket Grunt', quote:"Let's do this!", icon:'https://archives.bulbagarden.net/media/upload/thumb/8/80/VSTeam_GO_Rocket_Grunt_M.png/120px-VSTeam_GO_Rocket_Grunt_M.png'},
         { id:'grunt-female', name:'Rocket Grunt', quote:"You're gonna be sorry!", icon:'https://archives.bulbagarden.net/media/upload/thumb/6/62/VSTeam_GO_Rocket_Grunt_F.png/120px-VSTeam_GO_Rocket_Grunt_F.png'},
         { id:'cliff', name:'Cliff', quote:"Don't waste my time.", icon:'https://archives.bulbagarden.net/media/upload/thumb/d/d9/VSCliff.png/120px-VSCliff.png' },
-        { id:'sierra', name:'Sierra', quote:"You'll regret this.", icon:'https://archives.bulbagarden.net/media/upload/thumb/8/82/VSSierra.png/120px-VSSierra.png' },
         { id:'arlo', name:'Arlo', quote:"I'll show you true power.", icon:'https://archives.bulbagarden.net/media/upload/thumb/5/5c/VSArlo.png/120px-VSArlo.png' },
+        { id:'sierra', name:'Sierra', quote:"You'll regret this.", icon:'https://archives.bulbagarden.net/media/upload/thumb/8/82/VSSierra.png/120px-VSSierra.png' },
         { id:'giovanni', name:'Giovanni', quote:"So, you think you can challenge me?", icon:'https://archives.bulbagarden.net/media/upload/f/f3/VSGiovanni_GO.png' },
       ];
 
@@ -246,18 +247,31 @@
       }
 
       function readState() {
-        try {
-          const raw = localStorage.getItem('pogo-pvp-state');
-          return raw ? JSON.parse(raw) : {};
-        } catch (_) { return {}; }
+        if (window.AppState && typeof AppState.read === 'function') return AppState.read();
+        if (window.AppState && typeof AppState.all === 'function') return AppState.all();
+        return {};
       }
 
       function writeState(patch) {
-        try {
-          const state = readState();
-          const next = Object.assign({}, state, patch);
-          localStorage.setItem('pogo-pvp-state', JSON.stringify(next));
-        } catch (_) { /* ignore */ }
+        if (!patch || Object(patch) !== patch || !window.AppState) return;
+        const defined = {};
+        let hasDefined = false;
+        Object.keys(patch).forEach((key) => {
+          const value = patch[key];
+          if (value === undefined) {
+            if (typeof AppState.remove === 'function') AppState.remove(key);
+            else if (typeof AppState.set === 'function') AppState.set(key, undefined);
+          } else {
+            defined[key] = value;
+            hasDefined = true;
+          }
+        });
+        if (!hasDefined) return;
+        if (typeof AppState.write === 'function') AppState.write(defined);
+        else if (typeof AppState.merge === 'function') AppState.merge(defined);
+        else if (typeof AppState.set === 'function') {
+          Object.keys(defined).forEach((key) => AppState.set(key, defined[key]));
+        }
       }
 
       function getUnlockedCount() {
@@ -347,3 +361,4 @@
   </script>
 </body>
 </html>
+

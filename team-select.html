@@ -27,6 +27,7 @@
   <script src="pokemon-stats.js"></script>
   <script src="pokemon-data.js"></script>
   <script src="shared.js"></script>
+  <script src="saving.js"></script>
   <script>
     (function(){
       const MAX_TEAM = 3;
@@ -102,21 +103,6 @@
       }
 
       let workingTeam = [];
-
-      function readState() {
-        try {
-          const raw = localStorage.getItem('pogo-pvp-state');
-          return raw ? JSON.parse(raw) : {};
-        } catch (_) { return {}; }
-      }
-
-      function writeState(patch) {
-        try {
-          const state = readState();
-          const next = Object.assign({}, state, patch);
-          localStorage.setItem('pogo-pvp-state', JSON.stringify(next));
-        } catch (_) { /* ignore */ }
-      }
 
       function getNameById(id){
         const mon = (PD.byId && PD.byId.get) ? PD.byId.get(Number(id)) : null;

@@ -31,8 +31,9 @@
   <script src="pokemon-species.js"></script>
   <script src="pokemon-stats.js"></script>
   <script src="pokemon-data.js"></script>
-      <script src="shared.js"></script>
-      <script>
+  <script src="shared.js"></script>
+  <script src="saving.js"></script>
+  <script>
         (function(){
           const PD = window.PokemonData || {};
           const grid = document.getElementById('pokemonGrid');
@@ -103,22 +104,17 @@
 
       renderGrid();
 
-      function writeState(patch) {
-        try {
-          const raw = localStorage.getItem('pogo-pvp-state');
-          const state = raw ? JSON.parse(raw) : {};
-          const next = Object.assign({}, state, patch);
-          localStorage.setItem('pogo-pvp-state', JSON.stringify(next));
-        } catch (_) { /* ignore */ }
-      }
-
       // Navigate to detail on click (store selected id)
       grid.addEventListener('click', (e) => {
         const btn = e.target.closest('.pokemon-btn');
         if (!btn) return;
         const id = Number(btn.dataset.id || 0);
         const name = btn.dataset.name || '';
-        writeState({ viewPokemon: { id, name } });
+        if (window.AppState) {
+          if (typeof AppState.write === 'function') AppState.write({ viewPokemon: { id, name } });
+          else if (typeof AppState.merge === 'function') AppState.merge({ viewPokemon: { id, name } });
+          else if (typeof AppState.set === 'function') AppState.set('viewPokemon', { id, name });
+        }
         window.location.href = 'pokemon-detail.html';
       });
 
@@ -135,3 +131,6 @@
   </script>
 </body>
 </html>
+
+
+
