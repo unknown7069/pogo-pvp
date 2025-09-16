@@ -471,8 +471,9 @@
     if (playerCpEl) playerCpEl.textContent = `CP ${player.cp}`;
     renderTypes(playerTypesEl, player.types);
     // Update sprites
-    const oppUrl = PD.getBattleSpriteUrl(opponent.name, 'opponent');
-    const playerUrl = PD.getBattleSpriteUrl(player.name, 'player');
+    // TODO - handle shiny option
+    const oppUrl = PD.getBattleSpriteUrl(opponent.name, 'opponent', false);
+    const playerUrl = PD.getBattleSpriteUrl(player.name, 'player', false);
     if (oppSpriteImg) {
       oppSpriteImg.src = oppUrl;
       oppSpriteImg.alt = opponent.name;
@@ -910,14 +911,9 @@
 
     // TODO - Handle manual switches 
 
-    // Outcome checks (tie allowed)
+    // Outcome checks
     const playerFainted = player.hp <= 0;
     const opponentFainted = opponent.hp <= 0;
-    if (playerFainted && opponentFainted) {
-      // TODO - Remove the tie outcome, instead let the player win
-      concludeBattle('tie');
-      return;
-    }
     if (opponentFainted) {
       handleOpponentFaint();
       return;

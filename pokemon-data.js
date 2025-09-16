@@ -32,7 +32,14 @@
 
   // Slugify a Pokémon species name to match pokemondb naming.
   function slugifyName(name) {
-    const s = String(name || '').toLowerCase().trim();
+    let s = String(name || '').toLowerCase().trim();
+    // replace ♀ with -f, ♂ with -m 
+    s = s.replace('♀', '-f').replace('♂', '-m');
+    // replace . with - 
+    s = s.replace(/\./g, '-');
+    // replace "'" with empty
+    s = s.replace(/'/g, '');
+
     return s
       .normalize('NFKD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -48,13 +55,20 @@
   }
 
   // Build animated battle sprite URL (front/back) for Gen5 style.
-  function getBattleSpriteUrl(monOrName, side) {
-    const name = typeof monOrName === 'string' ? monOrName : (monOrName && monOrName.name) || '';
+  function getBattleSpriteUrl(name, side, isShiny) {
     const slug = slugifyName(name);
     if (String(side) === 'player') {
-      return `https://img.pokemondb.net/sprites/black-white/anim/back-normal/${slug}.gif`;
+      const direction = 'back-';
+    } else if (String(side) === 'opponent') {
+      const direction = '';  // empty for front
     }
-    return `https://img.pokemondb.net/sprites/black-white/anim/normal/${slug}.gif`;
+    // Check if shiny
+    if (isShiny === true) {
+      const style = 'shiny';
+    } else {
+      const style = 'normal';
+    }
+    return `https://img.pokemondb.net/sprites/black-white/anim/${direction}${style}/${slug}.gif`;
   }
 
   global.PokemonData = {

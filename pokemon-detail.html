@@ -204,7 +204,8 @@
         const img = document.createElement('img');
         img.alt = name;
         try {
-          const url = (PD.getBattleSpriteUrl ? PD.getBattleSpriteUrl(name, 'opponent') : null) || (PD.getForwardSpriteUrl ? PD.getForwardSpriteUrl(name) : '');
+          // TODO - shiny support
+          const url = (PD.getBattleSpriteUrl ? PD.getBattleSpriteUrl(name, 'opponent', false) : null) || (PD.getForwardSpriteUrl ? PD.getForwardSpriteUrl(name) : '');
           img.src = url;
         } catch (_) {}
         // Fallback to static forward-facing PNG if GIF fails
