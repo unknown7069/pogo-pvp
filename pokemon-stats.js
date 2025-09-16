@@ -147,8 +147,7 @@
     if (Object.prototype.hasOwnProperty.call(CP_MULTIPLIER_BY_LEVEL, key)) {
       return CP_MULTIPLIER_BY_LEVEL[key];
     }
-    // Fallback (should not happen): linear approx
-    return 0.1 + 0.0175 * snapped;
+    return 0;
   }
 
   // CP calculation from GO stats with level multiplier

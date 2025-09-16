@@ -142,7 +142,7 @@
     if (!m) return { name: 'Charged', energy: 50, dmg: 80, coolDownMs: 1500, type: 'normal' };
     const coolDownUnits = Number(m.coolDownTime || 1);
     const coolDownMs = coolDownUnits * 500; // 500ms units
-    return { name: m.name, energy: Number(m.energyCost||0), dmg: Number(m.power||0), coolDownMs, type: m.type };
+    return { name: m.name, energy: Number(m.energyCost||0), dmg: Number(m.power||0), coolDownMs, type: m.type, specialEffects: m.specialEffects };
   }
 
   // ---------------------------
@@ -253,7 +253,15 @@
   let player = playerTeam[activePlayerIndex].pokemon;
   // Build opponent's team from species list, rotating by stage index
   const pool = ALL_SPECIES.length ? ALL_SPECIES : [{id:1,name:'Pokemon'}];
-  const oppIds = [0,1,2].map(i => pool[(opponentIdx + i) % pool.length].id);
+  const opponentTeams = [
+    [3, 6, 9],
+    [],
+    [],
+    [],
+    [],
+    [],
+  ]
+  const oppIds = opponentTeams[opponentIdx];
   const opponentTeam = oppIds.map((id) => ({ id, pokemon: makePokemonFromId(id), fainted: false }));
 
   let activeOpponentIndex = 0;
@@ -498,15 +506,54 @@
   }
 
   function getAttackBuff(target) {
-    return 1 + target.attackBuff;
+    return 1 + Math.pow(target.attackBuff/10, 0.6);
   }
 
   function getDefenseBuff(target) {
-    return 1 + target.defenseBuff;
+    return 1 + Math.pow(target.defenseBuff/10, 0.6);
   }
 
   function getSpeedBuff(target) {
-    return 1 + target.speedBuff;
+    return 1 + Math.pow(target.speedBuff/10, 0.6);
+  }
+
+  function applyMoveBuff(user, target, move) {
+    // Apply buff/debuff stages from move to user or opponent
+    // Split specialEffects by comma
+    // specialEffects "sA+10" means user Attack +10 stage
+    if (!move || !move.specialEffects) return;
+    const parts = String(move.specialEffects || '').split(',').map(s => s.trim());
+    parts.forEach(part => {
+      const m = part.match(/^([su])([ADSH])([+-]\d+)$/i);
+      const who = m[1].toLowerCase();
+      const stat = m[2].toLowerCase();
+      const change = Number(m[3]);
+      const targetMon = who === 's' ? user : target;
+      if (!targetMon) return;
+      if (stat === 'a') {
+        console.log('Applying attack buff', change, 'to', who, targetMon.name);
+        targetMon.attackBuff += change;
+        flashEffectText(who === 's' ? 'player' : 'opponent', `A${change > 0 ? '+' : ''}${change}`);
+      } else if (stat === 'd') {
+        console.log('Applying defense buff', change, 'to', who, targetMon.name);
+        targetMon.defenseBuff += change;
+        flashEffectText(who === 's' ? 'player' : 'opponent', `D${change > 0 ? '+' : ''}${change}`);
+      } else if (stat === 's') {
+        console.log('Applying speed buff', change, 'to', who, targetMon.name);
+        targetMon.speedBuff += change;
+        flashEffectText(who === 's' ? 'player' : 'opponent', `S${change > 0 ? '+' : ''}${change}`);
+      } else if (stat === 'h') {
+        console.log('Applying heal', change, 'to', who, targetMon.name);
+        // Heal by % of max HP
+        const healPct = Math.max(0, Math.min(change * 10, 100));
+        const healAmt = Math.max(1, Math.round((healPct / 100) * targetMon.maxHP));
+        targetMon.hp = Math.min(targetMon.maxHP, targetMon.hp + healAmt);
+        flashEffectText(who === 's' ? 'player' : 'opponent', `+${healAmt} HP`);
+        updateHpUI();
+      } else {
+        console.warn('Unknown stat in special effect:', stat);
+      }
+    });
   }
 
   function updateBuffsUI() {
@@ -651,7 +698,7 @@
 
   function grantEnergy(p, amount) {
     // Keep energy as an integer: clamp to [0, ENERGY_CAP] then floor
-    const next = clamp(Number(p.energy || 0) + Number(amount || 0), 0, ENERGY_CAP);
+    const next = clamp(Number(p.energy || 0) + Number(amount || 0) + 1, 0, ENERGY_CAP);
     p.energy = Math.floor(next);
   }
 
@@ -779,30 +826,32 @@
     }
 
     if (playerAction) {
-      const base = Number(playerAction.move.dmg * player.stats.attack * getAttackBuff(player) / opponent.stats.defense / getDefenseBuff(opponent) || 0);
+      const base = Number(playerAction.move.dmg * player.stats.attack * getAttackBuff(player) / (opponent.stats.defense * getDefenseBuff(opponent)) || 0);
       const mult = typeMultiplier(playerAction.move.type, opponent.types);
       playerSE = mult > 1;
       playerNVE = mult < 1;
       const stab = stabMultiplier(playerAction.move.type, player.types);
-      dmgToOpponent += Math.floor(base * mult * stab);
+      dmgToOpponent += Math.floor(0.5 * base * mult * stab);
 
       if (playerAction.kind === 'charged') {
         pEnergyDelta -= Number(playerAction.move.energy || 0);
+        applyMoveBuff(player, opponent, playerAction.move);
       } else {
         // Apply speed-based energy rate scaling for fast moves, rounded down to integer
         pEnergyDelta += Math.floor(Number(playerAction.move.energyGain || 0) * Number(player.energyRate || 1)) * getSpeedBuff(player);
       }
     }
     if (opponentAction) {
-      const base = Number(opponentAction.move.dmg * opponent.stats.attack * getAttackBuff(opponent) / player.stats.defense / getDefenseBuff(player) || 0);
+      const base = Number(opponentAction.move.dmg * opponent.stats.attack * getAttackBuff(opponent) / (player.stats.defense * getDefenseBuff(player)) || 0);
       const mult = typeMultiplier(opponentAction.move.type, player.types);
       opponentSE = mult > 1;
       opponentNVE = mult < 1;
       const stab = stabMultiplier(opponentAction.move.type, opponent.types);
-      dmgToPlayer += Math.floor(base * mult * stab);
+      dmgToPlayer += Math.floor(0.5 * base * mult * stab);
 
       if (opponentAction.kind === 'charged') {
         oEnergyDelta -= Number(opponentAction.move.energy || 0);
+        applyMoveBuff(opponent, player, opponentAction.move);
       } else {
         // Apply speed-based energy rate scaling for fast moves, rounded down to integer
         oEnergyDelta += Math.floor(Number(opponentAction.move.energyGain || 0) * Number(opponent.energyRate || 1)) * getSpeedBuff(opponent);

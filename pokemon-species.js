@@ -1142,8 +1142,8 @@
       name: 'Snorlax',
       types: ['normal'],
       baseStats: { hp: 160, attack: 110, defense: 65, spAttack: 65, spDefense: 110, speed: 30 },
-      fastMoves: ['quick_attack'],
-      chargedMoves: ['body_slam','rock_slide'],
+      fastMoves: ['tackle'],
+      chargedMoves: ['body_slam', 'rest', 'crunch'],
     },
     144: {
       id: 144,
