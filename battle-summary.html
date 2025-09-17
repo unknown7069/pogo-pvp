@@ -34,13 +34,17 @@
   <script>
     (function(){
       function setText(el, text){ if (el) el.textContent = text; }
-      // Read only from stored result; do not fall back to URL
-      function readState() {
-        try {
-          const raw = localStorage.getItem('pogo-pvp-state');
-          return raw ? JSON.parse(raw) : {};
-        } catch (_) { return {}; }
-      }
+      // Read only from stored result; rely on centralized helpers with a safe fallback.
+      const readState = (typeof window.readState === 'function')
+        ? window.readState
+        : function () {
+          try {
+            const raw = localStorage.getItem('pogo-pvp-state');
+            return raw ? JSON.parse(raw) : {};
+          } catch (_) {
+            return {};
+          }
+        };
       const r = readState().lastBattleResult || null;
       const titleEl = document.getElementById('summaryTitle');
       const detailEl = document.getElementById('summaryDetail');

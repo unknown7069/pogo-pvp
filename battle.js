@@ -252,43 +252,36 @@
   // Battle state
   // ---------------------------
   // Read team and battle selection from centralized AppState; if missing, return to start
-  const store = window.AppState || null;
-
-  function readState() {
-    if (store && typeof store.read === 'function') return store.read();
-    if (store && typeof store.all === 'function') return store.all();
-    return {};
-  }
-
-  function writeState(patch) {
-    if (!patch || Object(patch) !== patch) return;
-    if (store && typeof store.write === 'function') { store.write(patch); return; }
-    if (store && typeof store.merge === 'function') { store.merge(patch); }
-  }
-
-  function setStateValue(key, value) {
-    if (!key) return;
-    if (store && typeof store.set === 'function') { store.set(key, value); return; }
-    const patch = {};
-    patch[key] = value;
-    writeState(patch);
-  }
-
-  function removeStateValue(key) {
-    if (!key) return;
-    if (store && typeof store.remove === 'function') { store.remove(key); return; }
-    const patch = {};
-    patch[key] = undefined;
-    writeState(patch);
-  }
-
-  function getStateValue(key, fallback) {
-    if (store && typeof store.get === 'function') return store.get(key, fallback);
-    const current = readState();
-    return Object.prototype.hasOwnProperty.call(current, key)
-      ? current[key]
-      : (arguments.length > 1 ? fallback : null);
-  }
+  const readState = (typeof window.readState === 'function')
+    ? window.readState
+    : function () { return {}; };
+  const writeState = (typeof window.writeState === 'function')
+    ? window.writeState
+    : function () {};
+  const setStateValue = (typeof window.setStateValue === 'function')
+    ? window.setStateValue
+    : function (key, value) {
+      if (!key) return;
+      const patch = {};
+      patch[key] = value;
+      writeState(patch);
+    };
+  const removeStateValue = (typeof window.removeStateValue === 'function')
+    ? window.removeStateValue
+    : function (key) {
+      if (!key) return;
+      const patch = {};
+      patch[key] = undefined;
+      writeState(patch);
+    };
+  const getStateValue = (typeof window.getStateValue === 'function')
+    ? window.getStateValue
+    : function (key, fallback) {
+      const current = readState();
+      return Object.prototype.hasOwnProperty.call(current, key)
+        ? current[key]
+        : (arguments.length > 1 ? fallback : null);
+    };
   const __state = readState();
   const selectedTeamMembers = Array.isArray(__state.selectedTeamMembers) ? __state.selectedTeamMembers : null;
   const selectedTeamUids = Array.isArray(__state.selectedTeamUids) ? __state.selectedTeamUids : null;

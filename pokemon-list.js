@@ -8,16 +8,40 @@
 
   const SHOW_SPRITES = true;
 
-  function readState() {
-    if (store && typeof store.read === 'function') return store.read();
-    if (store && typeof store.all === 'function') return store.all();
-    try {
-      const raw = window.localStorage ? window.localStorage.getItem('pogo-pvp-state') : null;
-      return raw ? JSON.parse(raw) : {};
-    } catch (_) {
-      return {};
-    }
-  }
+  const readState = (typeof window.readState === 'function')
+    ? window.readState
+    : function () {
+      if (store && typeof store.read === 'function') return store.read();
+      if (store && typeof store.all === 'function') return store.all();
+      try {
+        const raw = window.localStorage ? window.localStorage.getItem('pogo-pvp-state') : null;
+        return raw ? JSON.parse(raw) : {};
+      } catch (_) {
+        return {};
+      }
+    };
+
+  const writeState = (typeof window.writeState === 'function')
+    ? window.writeState
+    : function (patch) {
+      if (!patch || Object(patch) !== patch) return;
+      if (store && typeof store.write === 'function') { store.write(patch); return; }
+      if (store && typeof store.merge === 'function') { store.merge(patch); return; }
+      if (store && typeof store.set === 'function') {
+        Object.keys(patch).forEach((key) => store.set(key, patch[key]));
+        return;
+      }
+      try {
+        const next = Object.assign({}, readState(), patch);
+        if (window.localStorage) {
+          window.localStorage.setItem('pogo-pvp-state', JSON.stringify(next));
+        }
+      } catch (_) {}
+    };
+
+  const subscribeState = (typeof window.subscribeState === 'function')
+    ? window.subscribeState
+    : (store && typeof store.subscribe === 'function' ? store.subscribe.bind(store) : null);
 
   function sanitizeEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
@@ -188,8 +212,8 @@
   let collection = getCollection(initialState);
   renderGrid(collection);
 
-  if (store && typeof store.subscribe === 'function') {
-    store.subscribe((stateSnapshot) => {
+  if (typeof subscribeState === 'function') {
+    subscribeState((stateSnapshot) => {
       const next = getCollection(stateSnapshot);
       if (!collectionEquals(collection, next)) {
         collection = next;
@@ -209,11 +233,7 @@
     const view = { id, name: btn.dataset.name || '', level };
     const uid = btn.dataset.uid;
     if (uid) view.uid = uid;
-    if (store) {
-      if (typeof store.write === 'function') store.write({ viewPokemon: view });
-      else if (typeof store.merge === 'function') store.merge({ viewPokemon: view });
-      else if (typeof store.set === 'function') store.set('viewPokemon', view);
-    }
+    writeState({ viewPokemon: view });
     window.location.href = 'pokemon-detail.html';
   });
 

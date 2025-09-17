@@ -1,30 +1,28 @@
 (function (global) {
-  function readState() {
-    var store = global.AppState || null;
-    if (store && typeof store.read === 'function') return store.read();
-    if (store && typeof store.all === 'function') return store.all();
-    try {
-      var raw = global.localStorage ? global.localStorage.getItem('pogo-pvp-state') : null;
-      return raw ? JSON.parse(raw) : {};
-    } catch (_) {
-      return {};
-    }
-  }
+  var STORAGE_KEY = 'pogo-pvp-state';
 
-  function writeState(patch) {
-    if (!patch || Object(patch) !== patch) return;
-    var store = global.AppState || null;
-    if (store && typeof store.write === 'function') { store.write(patch); return; }
-    if (store && typeof store.merge === 'function') { store.merge(patch); return; }
-    if (store && typeof store.set === 'function') {
-      Object.keys(patch).forEach(function (key) { store.set(key, patch[key]); });
-      return;
-    }
-    try {
-      var next = Object.assign({}, readState(), patch);
-      if (global.localStorage) global.localStorage.setItem('pogo-pvp-state', JSON.stringify(next));
-    } catch (_) {}
-  }
+  var readState = (typeof global.readState === 'function')
+    ? global.readState
+    : function () {
+      try {
+        var raw = global.localStorage ? global.localStorage.getItem(STORAGE_KEY) : null;
+        return raw ? JSON.parse(raw) : {};
+      } catch (_) {
+        return {};
+      }
+    };
+
+  var writeState = (typeof global.writeState === 'function')
+    ? global.writeState
+    : function (patch) {
+      if (!patch || Object(patch) !== patch) return;
+      try {
+        var next = Object.assign({}, readState(), patch);
+        if (global.localStorage) {
+          global.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+      } catch (_) {}
+    };
 
   function sanitizeLevel(value, fallback) {
     var base = typeof fallback === 'number' ? fallback : 20;

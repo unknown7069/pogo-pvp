@@ -180,32 +180,36 @@
       const store = window.AppState || null;
       const STORAGE_KEY = 'pogo-pvp-state';
 
-      function readState() {
-        if (store && typeof store.read === 'function') return store.read();
-        if (store && typeof store.all === 'function') return store.all();
-        try {
-          const raw = window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
-          return raw ? JSON.parse(raw) : {};
-        } catch (_) {
-          return {};
-        }
-      }
-
-      function writeState(patch) {
-        if (!patch || Object(patch) !== patch) return;
-        if (store && typeof store.write === 'function') { store.write(patch); return; }
-        if (store && typeof store.merge === 'function') { store.merge(patch); return; }
-        if (store && typeof store.set === 'function') {
-          Object.keys(patch).forEach((key) => store.set(key, patch[key]));
-          return;
-        }
-        try {
-          const next = Object.assign({}, readState(), patch);
-          if (window.localStorage) {
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      const readState = (typeof window.readState === 'function')
+        ? window.readState
+        : function () {
+          if (store && typeof store.read === 'function') return store.read();
+          if (store && typeof store.all === 'function') return store.all();
+          try {
+            const raw = window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
+            return raw ? JSON.parse(raw) : {};
+          } catch (_) {
+            return {};
           }
-        } catch (_) {}
-      }
+        };
+
+      const writeState = (typeof window.writeState === 'function')
+        ? window.writeState
+        : function (patch) {
+          if (!patch || Object(patch) !== patch) return;
+          if (store && typeof store.write === 'function') { store.write(patch); return; }
+          if (store && typeof store.merge === 'function') { store.merge(patch); return; }
+          if (store && typeof store.set === 'function') {
+            Object.keys(patch).forEach((key) => store.set(key, patch[key]));
+            return;
+          }
+          try {
+            const next = Object.assign({}, readState(), patch);
+            if (window.localStorage) {
+              window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+            }
+          } catch (_) {}
+        };
 
       function sanitizeCollectionEntry(entry) {
         if (!entry || typeof entry !== 'object') return null;

@@ -246,33 +246,42 @@
         window.UI.attachDragScroll(list);
       }
 
-      function readState() {
-        if (window.AppState && typeof AppState.read === 'function') return AppState.read();
-        if (window.AppState && typeof AppState.all === 'function') return AppState.all();
-        return {};
-      }
+      const readState = (typeof window.readState === 'function')
+        ? window.readState
+        : function () {
+          if (window.AppState && typeof AppState.read === 'function') return AppState.read();
+          if (window.AppState && typeof AppState.all === 'function') return AppState.all();
+          return {};
+        };
 
-      function writeState(patch) {
-        if (!patch || Object(patch) !== patch || !window.AppState) return;
-        const defined = {};
-        let hasDefined = false;
-        Object.keys(patch).forEach((key) => {
-          const value = patch[key];
-          if (value === undefined) {
-            if (typeof AppState.remove === 'function') AppState.remove(key);
-            else if (typeof AppState.set === 'function') AppState.set(key, undefined);
-          } else {
-            defined[key] = value;
-            hasDefined = true;
+      const writeState = (typeof window.writeState === 'function')
+        ? window.writeState
+        : function (patch) {
+          if (!patch || Object(patch) !== patch || !window.AppState) return;
+          if (typeof AppState.write === 'function') { AppState.write(patch); return; }
+          if (typeof AppState.merge === 'function') { AppState.merge(patch); return; }
+          if (typeof AppState.set === 'function') {
+            Object.keys(patch).forEach((key) => AppState.set(key, patch[key]));
           }
-        });
-        if (!hasDefined) return;
-        if (typeof AppState.write === 'function') AppState.write(defined);
-        else if (typeof AppState.merge === 'function') AppState.merge(defined);
-        else if (typeof AppState.set === 'function') {
-          Object.keys(defined).forEach((key) => AppState.set(key, defined[key]));
-        }
-      }
+        };
+
+      const setStateValue = (typeof window.setStateValue === 'function')
+        ? window.setStateValue
+        : function (key, value) {
+          if (!key) return;
+          const patch = {};
+          patch[key] = value;
+          writeState(patch);
+        };
+
+      const removeStateValue = (typeof window.removeStateValue === 'function')
+        ? window.removeStateValue
+        : function (key) {
+          if (!key) return;
+          const patch = {};
+          patch[key] = undefined;
+          writeState(patch);
+        };
 
       function getUnlockedCount() {
         const state = readState();
@@ -281,7 +290,7 @@
       }
 
       function setUnlockedCount(n) {
-        writeState({ [PROGRESS_KEY]: Math.max(1, Math.min(Number(n||1), STAGES.length)) });
+        setStateValue(PROGRESS_KEY, Math.max(1, Math.min(Number(n || 1), STAGES.length)));
       }
 
       function render() {
@@ -323,11 +332,11 @@
           const all = unlockToggle.checked;
           if (all) {
             // Save previous progression to restore later
-            writeState({ rocketUnlockedPrev: getUnlockedCount() });
+            setStateValue('rocketUnlockedPrev', getUnlockedCount());
             setUnlockedCount(STAGES.length);
           } else {
             const prev = Number(readState().rocketUnlockedPrev || 1) || 1;
-            writeState({ rocketUnlockedPrev: undefined });
+            removeStateValue('rocketUnlockedPrev');
             setUnlockedCount(prev);
           }
           render();

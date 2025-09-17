@@ -112,5 +112,22 @@
   };
 
   global.AppState = api;
+
+  var sharedStateHelpers = {
+    readState: function () { return api.read(); },
+    writeState: function (patch) { api.write(patch); },
+    mergeState: function (patch) { api.merge(patch); },
+    replaceState: function (next) { api.replace(next); },
+    clearState: function () { api.clear(); },
+    getStateValue: function (key, fallback) { return api.get(key, fallback); },
+    setStateValue: function (key, value) { api.set(key, value); },
+    removeStateValue: function (key) { api.remove(key); },
+    subscribeState: function (fn) { return api.subscribe(fn); }
+  };
+
+  Object.keys(sharedStateHelpers).forEach(function (key) {
+    global[key] = sharedStateHelpers[key];
+  });
+
 })(window);
 
