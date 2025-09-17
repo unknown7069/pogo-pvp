@@ -302,8 +302,8 @@
   const hasLegacyNames = selectedTeamNamesLegacy && selectedTeamNamesLegacy.length;
   if ((!hasModernSelection && !hasLegacyIds && !hasLegacyNames) || !selectedBattle) {
     // Required info missing; send player back to start screen
-    window.location.replace('index.html');
-    return;
+    // window.location.replace('index.html');
+    // return;
   }
 
   const opponentIdx = Number(selectedBattle.index || 0);
@@ -1217,44 +1217,158 @@
     state.timers.global = setInterval(onTick, TICK_MS);
   }
 
-  function performSwitch(nextIndex) {
+  async function performSwitch(nextIndex) {
     if (nextIndex === activePlayerIndex) return;
     if (nextIndex < 0 || nextIndex >= playerTeam.length) return;
     if (playerTeam[nextIndex].fainted) return;
-    // TODO - animate current mon disappearing, a ball being thrown, and new mon entering by having the sprite grow from small to full size
-    // Use the following URLS for ball sprites 
-    // https://bulbapedia.bulbagarden.net/wiki/File:Pok%C3%A9_Ball_battle_V.png
-    // https://bulbapedia.bulbagarden.net/wiki/File:Premier_Ball_battle_V.png
-    // https://bulbapedia.bulbagarden.net/wiki/File:Great_Ball_battle_V.png
-    // https://bulbapedia.bulbagarden.net/wiki/File:Ultra_Ball_battle_V.png
-    // https://bulbapedia.bulbagarden.net/wiki/File:Master_Ball_battle_V.png
-
+    const nextSlot = playerTeam[nextIndex];
+    const nextPokemon = nextSlot && nextSlot.pokemon;
+    if (!nextPokemon) return;
+    const ballSpriteUrls = [
+      'https://archives.bulbagarden.net/media/upload/7/75/Pok%C3%A9_Ball_battle_V.png',
+      'https://archives.bulbagarden.net/media/upload/6/60/Premier_Ball_battle_V.png',
+      'https://archives.bulbagarden.net/media/upload/9/95/Great_Ball_battle_V.png',
+      'https://archives.bulbagarden.net/media/upload/7/75/Ultra_Ball_battle_V.png',
+      'https://archives.bulbagarden.net/media/upload/c/c4/Master_Ball_battle_V.png',
+    ];
     // Close overlay and clear timers if any
     if (switchOverlay) switchOverlay.classList.remove('show');
     if (state.timers.switchCountdown) { clearInterval(state.timers.switchCountdown); state.timers.switchCountdown = null; }
     if (state.timers.switchAuto) { clearTimeout(state.timers.switchAuto); state.timers.switchAuto = null; }
     if (switchOptionsEl) switchOptionsEl.textContent = '';
-
-    activePlayerIndex = nextIndex;
-    player = playerTeam[activePlayerIndex].pokemon;
-    // Reset per-switch state
-    // Reset recent damage overlay baseline for player to avoid cross-Pokémon artifacts
-    prevPlayerHpPct = Math.max(0, Math.round((player.hp / player.maxHP) * 100));
-    if (recentDamageTimers.player) { clearTimeout(recentDamageTimers.player); recentDamageTimers.player = null; }
-    if (playerRecentBar) playerRecentBar.style.setProperty('--hp-recent', prevPlayerHpPct + '%');
-    // Update UI
-    updateHeaderUI();
-    updateHpUI();
-    updateEnergyUI();
-    refreshMoveButtons();
-    persistBattleState();
-
-    // Resume battle
+    const stageEl = document.querySelector('.battle-stage');
+    const spriteHost = playerSpriteEl;
+    const spriteImg = playerSpriteImg;
+    const nextSpriteUrl = PD.getBattleSpriteUrl(nextPokemon.name, 'player', nextPokemon.shiny);
+    // Helper to await animations even when Animation.finished isn't supported
+    const waitForAnimation = (animation, fallbackMs) => new Promise(resolve => {
+      if (!animation) { resolve(); return; }
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      if (animation.finished && typeof animation.finished.then === 'function') {
+        animation.finished.then(finish).catch(finish);
+      } else {
+        animation.onfinish = finish;
+        animation.oncancel = finish;
+      }
+      if (Number.isFinite(fallbackMs) && fallbackMs > 0) {
+        setTimeout(finish, fallbackMs + 50);
+      }
+    });
+    const loadNextSprite = new Promise(resolve => {
+      if (!nextSpriteUrl) { resolve(); return; }
+      const preloader = new Image();
+      preloader.decoding = 'async';
+      preloader.onload = () => resolve();
+      preloader.onerror = () => resolve();
+      preloader.src = nextSpriteUrl;
+    });
+    const finalizeSwitchState = () => {
+      activePlayerIndex = nextIndex;
+      player = playerTeam[activePlayerIndex].pokemon;
+      prevPlayerHpPct = Math.max(0, Math.round((player.hp / player.maxHP) * 100));
+      if (recentDamageTimers.player) { clearTimeout(recentDamageTimers.player); recentDamageTimers.player = null; }
+      if (playerRecentBar) playerRecentBar.style.setProperty('--hp-recent', prevPlayerHpPct + '%');
+      updateHeaderUI();
+      updateHpUI();
+      updateEnergyUI();
+      refreshMoveButtons();
+      persistBattleState();
+    };
+    const throwBall = () => new Promise(resolve => {
+      const ballUrl = ballSpriteUrls[nextIndex % ballSpriteUrls.length];
+      if (!stageEl || !spriteHost || !ballUrl) { resolve(); return; }
+      const stageRect = stageEl.getBoundingClientRect();
+      const spriteRect = spriteHost.getBoundingClientRect();
+      if (!stageRect || !spriteRect) { resolve(); return; }
+      const ball = document.createElement('img');
+      ball.className = 'switch-ball';
+      ball.src = ballUrl;
+      ball.alt = 'Switch ball';
+      ball.style.position = 'absolute';
+      ball.style.width = '56px';
+      ball.style.height = '56px';
+      ball.style.pointerEvents = 'none';
+      ball.style.transformOrigin = '50% 50%';
+      ball.style.zIndex = '4';
+      const targetX = spriteRect.left - stageRect.left + (spriteRect.width / 2) - 28;
+      const targetY = spriteRect.bottom - stageRect.top - Math.min(spriteRect.height * 0.35, 72);
+      ball.style.left = `${targetX}px`;
+      ball.style.top = `${targetY}px`;
+      ball.style.opacity = '0';
+      stageEl.appendChild(ball);
+      if (typeof ball.animate === 'function') {
+        const animation = ball.animate(
+          [
+            { transform: 'translate3d(-220%, 160%, 0) scale(0.6)', opacity: 0 },
+            { transform: 'translate3d(-80%, 40%, 0) scale(0.95)', opacity: 1, offset: 0.6 },
+            { transform: 'translate3d(0, 0, 0) scale(0.5)', opacity: 0 },
+          ],
+          { duration: 480, easing: 'ease-in-out' }
+        );
+        const cleanup = () => {
+          if (ball.parentNode) ball.parentNode.removeChild(ball);
+          resolve();
+        };
+        if (animation) {
+          waitForAnimation(animation, 480).then(cleanup);
+        } else {
+          cleanup();
+        }
+      } else {
+        ball.style.opacity = '1';
+        setTimeout(() => {
+          if (ball.parentNode) ball.parentNode.removeChild(ball);
+          resolve();
+        }, 450);
+      }
+    });
+    state.active = false;
+    stopAllLoops();
+    setControlsDisabled(true);
+    if (!spriteImg || !spriteHost || typeof spriteImg.animate !== 'function') {
+      await loadNextSprite;
+      finalizeSwitchState();
+      state.active = true;
+      setControlsDisabled(false);
+      startAllLoops();
+      return;
+    }
+    try {
+      const shrink = spriteImg.animate(
+        [
+          { transform: 'scale(2.5)', opacity: 1 },
+          { transform: 'scale(0.1)', opacity: 0 },
+        ],
+        { duration: 260, easing: 'ease-in' }
+      );
+      await waitForAnimation(shrink, 260);
+    } catch (_) { /* ignore animation errors */ }
+    spriteImg.style.opacity = '0';
+    spriteImg.style.transform = 'scale(0.1)';
+    await loadNextSprite;
+    finalizeSwitchState();
+    await throwBall().catch(() => {});
+    try {
+      const grow = spriteImg.animate(
+        [
+          { transform: 'scale(0.1)', opacity: 0 },
+          { transform: 'scale(2.5)', opacity: 1 },
+        ],
+        { duration: 300, easing: 'ease-out' }
+      );
+      await waitForAnimation(grow, 300);
+    } catch (_) { /* ignore animation errors */ }
+    spriteImg.style.opacity = '';
+    spriteImg.style.transform = '';
     state.active = true;
     setControlsDisabled(false);
     startAllLoops();
   }
-
   function openSwitchOverlay(options) {
     if (!switchOverlay || !switchOptionsEl) return;
     switchOptionsEl.textContent = '';
