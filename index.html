@@ -41,8 +41,44 @@
     <div id="loginOverlay" class="login-overlay" aria-live="assertive">Login Successful!</div>
   </div>
 
+  <script src="saving.js"></script>
+  <script src="collection.js"></script>
   <script>
     (function() {
+      const STARTER_POKEMON = [
+        { id: 1, name: 'Bulbasaur' },
+        { id: 4, name: 'Charmander' },
+        { id: 7, name: 'Squirtle' },
+      ];
+
+      function getExistingCollection() {
+        const store = window.AppState || null;
+        if (store && typeof store.get === 'function') {
+          const value = store.get('playerPokemon', []);
+          return Array.isArray(value) ? value : [];
+        }
+        try {
+          const raw = window.localStorage ? window.localStorage.getItem('pogo-pvp-state') : null;
+          if (!raw) return [];
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed.playerPokemon) ? parsed.playerPokemon : [];
+        } catch (_) {
+          return [];
+        }
+      }
+
+      function seedStarters() {
+        const existing = getExistingCollection();
+        if (existing && existing.length) return;
+        const api = window.PlayerCollection;
+        if (!api || typeof api.createPokemon !== 'function') return;
+        STARTER_POKEMON.forEach(function (mon) {
+          api.createPokemon({ id: mon.id, name: mon.name, level: 5, uid: 'starter_' + mon.id });
+        });
+      }
+
+      seedStarters();
+
       const phone = document.getElementById('startPhone');
       const overlay = document.getElementById('loginOverlay');
       let started = false;

@@ -13,9 +13,52 @@
   const all = canonical;
   const byId = new Map(all.map(p => [p.id, p]));
 
-  function getPokemonById(id) {
+  function clampIv(value) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    n = Math.round(n);
+    if (n < 0) n = 0;
+    if (n > 15) n = 15;
+    return n;
+  }
+
+  function normalizeShiny(value) {
+    if (value === true) return 1;
+    if (value === false) return 0;
+    var n = Number(value);
+    if (Number.isFinite(n)) return n === 1 ? 1 : 0;
+    return value ? 1 : 0;
+  }
+
+  function applyCollectionOverrides(mon, overrides) {
+    if (!overrides || Object(overrides) !== overrides) return mon;
+    var copy = Object.assign({}, mon);
+    if (overrides.shiny != null) {
+      copy.shiny = normalizeShiny(overrides.shiny);
+    }
+    var sourceIvs = null;
+    if (overrides.ivs && Object(overrides.ivs) === overrides.ivs) {
+      sourceIvs = overrides.ivs;
+    }
+    var hpIv = clampIv(sourceIvs ? sourceIvs.hp : overrides.ivHp);
+    var atkIv = clampIv(sourceIvs ? sourceIvs.attack : overrides.ivAttack);
+    var defIv = clampIv(sourceIvs ? sourceIvs.defense : overrides.ivDefense);
+    if (hpIv != null || atkIv != null || defIv != null) {
+      var baseIvs = (mon.ivs && Object(mon.ivs) === mon.ivs) ? mon.ivs : {};
+      copy.ivs = Object.assign({}, baseIvs);
+      if (hpIv != null) copy.ivs.hp = hpIv;
+      if (atkIv != null) copy.ivs.attack = atkIv;
+      if (defIv != null) copy.ivs.defense = defIv;
+    }
+    return copy;
+  }
+
+
+  function getPokemonById(id, overrides) {
     const key = Number(id);
-    return byId.get(key) || null;
+    const mon = byId.get(key) || null;
+    if (!mon) return null;
+    return overrides ? applyCollectionOverrides(mon, overrides) : mon;
   }
 
   function getGoStatsById(id, level) {
@@ -47,7 +90,6 @@
       .replace(/^-+|-+$/g, '');
   }
 
-  // Build a forward-facing static sprite URL (PNG).
   function getForwardSpriteUrl(monOrName) {
     const name = typeof monOrName === 'string' ? monOrName : (monOrName && monOrName.name) || '';
     const slug = slugifyName(name);
@@ -57,17 +99,9 @@
   // Build animated battle sprite URL (front/back) for Gen5 style.
   function getBattleSpriteUrl(name, side, isShiny) {
     const slug = slugifyName(name);
-    if (String(side) === 'player') {
-      const direction = 'back-';
-    } else if (String(side) === 'opponent') {
-      const direction = '';  // empty for front
-    }
-    // Check if shiny
-    if (isShiny === true) {
-      const style = 'shiny';
-    } else {
-      const style = 'normal';
-    }
+    if (!slug) return '';
+    const direction = String(side) === 'player' ? 'back-' : '';
+    const style = isShiny ? 'shiny' : 'normal';
     return `https://img.pokemondb.net/sprites/black-white/anim/${direction}${style}/${slug}.gif`;
   }
 

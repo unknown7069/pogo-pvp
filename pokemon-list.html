@@ -15,11 +15,12 @@
     .pokemon-grid { overflow: visible; padding-bottom: 80px; }
     /* Use the shared sticky footer behavior; no override needed here */
 
+    .empty-state { padding: 32px 16px; text-align: center; color: #555; font-weight: 600; }
   </style>
 </head>
   <body>
     <div class="phone phone-column">
-      <div class="list-header"><span id="pokemonCount">Pokemon 0/0</span></div>
+      <div class="list-header"><span id="pokemonCount">Pokemon 0</span></div>
       <div class="pokemon-grid" id="pokemonGrid"></div>
     <div class="bottom-close">
       <button class="close-btn" id="closeBtn" type="button" aria-label="Close">&times;</button>

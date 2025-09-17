@@ -148,15 +148,57 @@
   // ---------------------------
   // Pokemon factories
   // ---------------------------
-  function makePokemonFromId(id) {
-    const mon = (PD.byId && PD.byId.get) ? PD.byId.get(Number(id)) : null;
+  function sanitizeLevelValue(value, fallback) {
+    const base = typeof fallback === 'number' ? fallback : 20;
+    let n = Number(value);
+    if (Number.isNaN(n)) n = base;
+    n = Math.max(1, Math.min(n, 50));
+    return Math.round(n * 2) / 2;
+  }
+
+  function sanitizeCollectionEntry(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const uid = typeof entry.uid === 'string' && entry.uid ? entry.uid : null;
+    const id = Number(entry.id);
+    const level = sanitizeLevelValue(entry.level, 20);
+    if (!uid || Number.isNaN(id) || Number.isNaN(level)) return null;
+    const normalized = {
+      uid,
+      id,
+      level,
+      name: typeof entry.name === 'string' ? entry.name : null,
+    };
+    if (entry.shiny != null) normalized.shiny = entry.shiny;
+    if (entry.ivHp != null) normalized.ivHp = entry.ivHp;
+    if (entry.ivAttack != null) normalized.ivAttack = entry.ivAttack;
+    if (entry.ivDefense != null) normalized.ivDefense = entry.ivDefense;
+    if (entry.ivs && typeof entry.ivs === 'object') {
+      normalized.ivs = {
+        hp: entry.ivs.hp,
+        attack: entry.ivs.attack,
+        defense: entry.ivs.defense,
+      };
+    }
+    return normalized;
+  }
+
+  function makePokemonFromId(id, levelOverride, overrides) {
+    const key = Number(id);
+    const level = sanitizeLevelValue(levelOverride, 20);
+    let mon = null;
+    if (PD.getPokemonById) {
+      try { mon = PD.getPokemonById(key, overrides || undefined); } catch (_) {}
+    }
+    if (!mon && PD.byId && PD.byId.get) {
+      mon = PD.byId.get(key);
+    }
     if (!mon) {
-      // Fallback dummy
       const maxHP = 1;
       return {
-        id: Number(id)||0,
+        id: key || 0,
         name: 'Pokemon',
         types: ['normal'],
+        level,
         maxHP,
         hp: maxHP,
         energy: 0,
@@ -168,31 +210,41 @@
         attackBuff: 0,
         defenseBuff: 0,
         speedBuff: 0,
+        shiny: false,
       };
     }
-    const stats = PD.getGoStatsById(mon.id, 20);
+    let stats = null;
+    try {
+      stats = PD.getGoStatsById ? PD.getGoStatsById(mon.id, level) : null;
+    } catch (_) {}
+    if (!stats || typeof stats !== 'object') {
+      stats = { hp: 100, attack: 50, defense: 50, speed: 50 };
+    }
     const maxHP = Math.max(1, Number(stats.hp || 100));
     const fastId = Array.isArray(mon.fastMoves) && mon.fastMoves[0];
     const chargedIds = Array.isArray(mon.chargedMoves) ? mon.chargedMoves : [];
     const charged = chargedIds.slice(0,3).map(chargedFromId);
+    let cp = 10;
+    try {
+      if (PD.calcGoCp) cp = PD.calcGoCp(stats);
+    } catch (_) {}
     return {
       id: mon.id,
       name: mon.name,
       types: Array.isArray(mon.types) ? mon.types : [],
+      level,
       maxHP,
       hp: maxHP,
       energy: 0,
-      cp: (PD.calcGoCp(stats)),
+      cp,
       stats: stats,
-      // Scale fast-move energy gain by GO speed: (speed / 100) * energyGain
-      // Store as a per-Pokémon multiplier to apply on each fast move.
-      energyRate: (Number(stats.speed) / 100),
+      energyRate: (Number(stats.speed || 100) / 100),
       fast: fastFromId(fastId),
-      // Allow zero charged moves; UI will leave those slots blank
       charged: charged,
       attackBuff: 0,
       defenseBuff: 0,
       speedBuff: 0,
+      shiny: !!mon.shiny,
     };
   }
 
@@ -238,12 +290,17 @@
       : (arguments.length > 1 ? fallback : null);
   }
   const __state = readState();
+  const selectedTeamMembers = Array.isArray(__state.selectedTeamMembers) ? __state.selectedTeamMembers : null;
+  const selectedTeamUids = Array.isArray(__state.selectedTeamUids) ? __state.selectedTeamUids : null;
   const selectedTeamIds = Array.isArray(__state.selectedTeamIds) ? __state.selectedTeamIds : null;
   const selectedTeamNamesLegacy = Array.isArray(__state.selectedTeam) ? __state.selectedTeam : null;
   const selectedBattle = (__state.selectedBattle && typeof __state.selectedBattle.index === 'number' && __state.selectedBattle.label)
     ? __state.selectedBattle
     : null;
-  if ((!selectedTeamIds || selectedTeamIds.length === 0) && (!selectedTeamNamesLegacy || selectedTeamNamesLegacy.length === 0) || !selectedBattle) {
+  const hasModernSelection = (selectedTeamMembers && selectedTeamMembers.length) || (selectedTeamUids && selectedTeamUids.length);
+  const hasLegacyIds = selectedTeamIds && selectedTeamIds.length;
+  const hasLegacyNames = selectedTeamNamesLegacy && selectedTeamNamesLegacy.length;
+  if ((!hasModernSelection && !hasLegacyIds && !hasLegacyNames) || !selectedBattle) {
     // Required info missing; send player back to start screen
     window.location.replace('index.html');
     return;
@@ -251,25 +308,103 @@
 
   const opponentIdx = Number(selectedBattle.index || 0);
 
-  // Build player's team from IDs if available; else legacy fallback
+  const playerCollectionRaw = Array.isArray(__state.playerPokemon) ? __state.playerPokemon : [];
+  const playerCollection = playerCollectionRaw.map(sanitizeCollectionEntry).filter(Boolean);
+  const entriesByUid = new Map();
+  for (let i = 0; i < playerCollection.length; i++) {
+    entriesByUid.set(playerCollection[i].uid, playerCollection[i]);
+  }
+
+  function deriveTeamEntries() {
+    const result = [];
+    const used = new Set();
+    if (selectedTeamMembers) {
+      for (let i = 0; i < selectedTeamMembers.length && result.length < 3; i++) {
+        const member = selectedTeamMembers[i];
+        if (!member) continue;
+        const uid = typeof member.uid === 'string' ? member.uid : null;
+        if (uid && entriesByUid.has(uid) && !used.has(uid)) {
+          result.push(entriesByUid.get(uid));
+          used.add(uid);
+        } else if (member.id != null) {
+          const id = Number(member.id);
+          if (!Number.isNaN(id)) {
+            for (let j = 0; j < playerCollection.length; j++) {
+              const entry = playerCollection[j];
+              if (entry.id === id && !used.has(entry.uid)) {
+                result.push(entry);
+                used.add(entry.uid);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+    if (selectedTeamUids) {
+      for (let i = 0; i < selectedTeamUids.length && result.length < 3; i++) {
+        const uid = typeof selectedTeamUids[i] === 'string' ? selectedTeamUids[i] : null;
+        if (uid && entriesByUid.has(uid) && !used.has(uid)) {
+          result.push(entriesByUid.get(uid));
+          used.add(uid);
+        }
+      }
+    }
+    if (selectedTeamIds) {
+      for (let i = 0; i < selectedTeamIds.length && result.length < 3; i++) {
+        const id = Number(selectedTeamIds[i]);
+        if (Number.isNaN(id)) continue;
+        for (let j = 0; j < playerCollection.length; j++) {
+          const entry = playerCollection[j];
+          if (entry.id === id && !used.has(entry.uid)) {
+            result.push(entry);
+            used.add(entry.uid);
+            break;
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  function createTeamMember(entry) {
+    const level = entry && entry.level != null ? entry.level : 20;
+    const id = entry && entry.id != null ? entry.id : 0;
+    const poke = makePokemonFromId(id, level, entry);
+    return {
+      id: poke.id,
+      uid: entry && entry.uid ? entry.uid : null,
+      level,
+      name: entry && entry.name ? entry.name : poke.name,
+      pokemon: poke,
+      fainted: false,
+    };
+  }
+
+  // Build player's team from selection (uids) with fallbacks for legacy ids/names
   let playerTeam = [];
   let teamIds = [];
-  if (selectedTeamIds && selectedTeamIds.length) {
-    teamIds = selectedTeamIds.map(Number).slice(0,3);
-    playerTeam = teamIds.map((id) => {
-      const poke = makePokemonFromId(id);
-      return { id, name: poke.name, pokemon: poke, fainted: false };
-    });
-  } else {
-    // Legacy fallback: map names to first N species in PD
-    // TODO - remove this fallback code
+  let teamUids = [];
+
+  const derivedEntries = deriveTeamEntries();
+  if (derivedEntries.length) {
+    playerTeam = derivedEntries.slice(0, 3).map(createTeamMember);
+  } else if (hasLegacyIds) {
+    const legacyIds = selectedTeamIds.map(Number).filter((n) => !Number.isNaN(n)).slice(0, 3);
+    playerTeam = legacyIds.map((id) => createTeamMember({ id, level: 20, uid: null }));
+  } else if (hasLegacyNames) {
     const fallback = (ALL_SPECIES.length ? ALL_SPECIES : [{id:1,name:'Pokemon'},{id:4,name:'Pokemon'},{id:7,name:'Pokemon'}]);
-    teamIds = selectedTeamNamesLegacy.map((_, i) => fallback[i % fallback.length].id);
-    playerTeam = teamIds.map((id) => {
-      const poke = makePokemonFromId(id);
-      return { id, name: poke.name, pokemon: poke, fainted: false };
-    });
+    const legacyIds = selectedTeamNamesLegacy.map((_, i) => fallback[i % fallback.length].id).slice(0, 3);
+    playerTeam = legacyIds.map((id) => createTeamMember({ id, level: 20, uid: null }));
   }
+
+  if (!playerTeam.length) {
+    window.location.replace('index.html');
+    return;
+  }
+
+  teamIds = playerTeam.map((member) => member.id);
+  teamUids = playerTeam.map((member) => member.uid).filter((uid) => typeof uid === 'string' && uid);
 
   let activePlayerIndex = 0;
   let player = playerTeam[activePlayerIndex].pokemon;
@@ -299,8 +434,10 @@
       activePlayerIndex,
       activeOpponentIndex,
       playerTeam: playerTeam.map(m => ({
+        uid: m.uid || null,
         id: m.id,
         name: m.name,
+        level: m.level,
         hp: m.pokemon.hp,
         maxHP: m.pokemon.maxHP,
         energy: m.pokemon.energy,
@@ -329,8 +466,14 @@
       if (!saved || typeof saved !== 'object') return false;
       if (Number(saved.stageIndex) !== Number(opponentIdx)) return false;
       // Validate team matches
-      const savedIds = (saved.playerTeam || []).map(p => p.id);
-      const sameTeam = Array.isArray(savedIds) && savedIds.length === teamIds.length && savedIds.every((n, i) => Number(n) === Number(teamIds[i]));
+      const savedUids = (saved.playerTeam || []).map(p => (p && typeof p.uid === 'string') ? p.uid : null).filter(Boolean);
+      let sameTeam = false;
+      if (teamUids.length && savedUids.length === teamUids.length && savedUids.every((uid, i) => uid === teamUids[i])) {
+        sameTeam = true;
+      } else {
+        const savedIds = (saved.playerTeam || []).map(p => p.id);
+        sameTeam = Array.isArray(savedIds) && savedIds.length === teamIds.length && savedIds.every((n, i) => Number(n) === Number(teamIds[i]));
+      }
       if (!sameTeam) return false;
       // Apply player team hp/energy/fainted
       (saved.playerTeam || []).forEach((s, i) => {
@@ -488,8 +631,8 @@
     renderTypes(playerTypesEl, player.types);
     // Update sprites
     // TODO - handle shiny option
-    const oppUrl = PD.getBattleSpriteUrl(opponent.name, 'opponent', false);
-    const playerUrl = PD.getBattleSpriteUrl(player.name, 'player', false);
+    const oppUrl = PD.getBattleSpriteUrl(opponent.name, 'opponent', opponent.shiny);
+    const playerUrl = PD.getBattleSpriteUrl(player.name, 'player', player.shiny);
     if (oppSpriteImg) {
       oppSpriteImg.src = oppUrl;
       oppSpriteImg.alt = opponent.name;

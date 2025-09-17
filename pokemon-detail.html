@@ -55,6 +55,11 @@
     .t-fairy{ background:#d685ad; }
 
     /* Content sections */
+    .level-row { display:flex; align-items:center; gap: 12px; margin-bottom: 12px; }
+    .level-input { flex: 1 1 auto; padding: 8px 12px; font-size: 16px; border: 1px solid #d0d0d0; border-radius: 12px; background: #fff; color: #111; box-shadow: inset 0 1px 2px rgba(0,0,0,0.06); }
+    .level-input:focus { outline: none; border-color: #007aff; box-shadow: 0 0 0 2px rgba(0,122,255,0.15); }
+    .save-feedback { margin-top: 10px; text-align: center; font-size: 13px; font-weight: 600; color: #2ecc71; min-height: 18px; }
+    .save-feedback[data-error='1'] { color: #e74c3c; }
     /* Content now flows; parent handles scrolling */
     .content { flex: 1 1 auto; overflow: visible; padding: 12px; background:#f5f5f7; }
     .card { background:#fff; border:1px solid #e6e6e6; border-radius: 14px; padding: 12px; margin-bottom: 12px; }
@@ -140,6 +145,15 @@
         </div>
 
         <div class="card">
+          <div class="row level-row">
+            <label class="label" for="levelInput">Level</label>
+            <input class="level-input" id="levelInput" type="number" inputmode="decimal" min="1" max="50" step="0.5" value="20">
+          </div>
+          <button class="btn btn-primary" id="savePokemonBtn" type="button" style="width:100%">Save Pokemon</button>
+          <div class="save-feedback" id="saveFeedback" aria-live="polite"></div>
+        </div>
+
+        <div class="card">
           <button class="btn btn-primary" id="powerBtn" type="button" style="width:100%">Power Up</button>
         </div>
       </div>
@@ -156,92 +170,162 @@
   <script src="pokemon-stats.js"></script>
   <script src="pokemon-data.js"></script>
   <script src="shared.js"></script>
-  <script>
+    <script>
     (function(){
-      // Enable drag-to-scroll on the full page container
       const page = document.querySelector('.phone.phone-column');
       if (page && window.UI && typeof window.UI.attachDragScroll === 'function') {
         window.UI.attachDragScroll(page);
       }
 
-      function readState() {
-        try {
-          const raw = localStorage.getItem('pogo-pvp-state');
-          return raw ? JSON.parse(raw) : {};
-        } catch (_) { return {}; }
-      }
-      const PD = window.PokemonData || {};
-      const state = readState();
-      const view = state.viewPokemon || {};
-      const id = Number(view.id || 0) || (PD.all && PD.all[0] && PD.all[0].id) || 0;
-      const mon = (PD.byId && PD.byId.get) ? PD.byId.get(id) : null;
-      const name = (mon && mon.name) || (view.name || 'Pokemon');
-      const level = 50; // placeholder level display
-      const stats = (PD.getGoStatsById && id) ? PD.getGoStatsById(id, level) : { hp: 100, attack: 50, defense: 50, speed: 50 };
-      const hpMax = Math.max(1, Number(stats.hp || 100));
-      const atk = Number(stats.attack || 50);
-      const def = Number(stats.defense || 50);
-      const spd = Number(stats.speed || 50);
-      const types = (mon && mon.types) || [];
+      const store = window.AppState || null;
+      const STORAGE_KEY = 'pogo-pvp-state';
 
-      // Moves from PokemonData
+      function readState() {
+        if (store && typeof store.read === 'function') return store.read();
+        if (store && typeof store.all === 'function') return store.all();
+        try {
+          const raw = window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
+          return raw ? JSON.parse(raw) : {};
+        } catch (_) {
+          return {};
+        }
+      }
+
+      function writeState(patch) {
+        if (!patch || Object(patch) !== patch) return;
+        if (store && typeof store.write === 'function') { store.write(patch); return; }
+        if (store && typeof store.merge === 'function') { store.merge(patch); return; }
+        if (store && typeof store.set === 'function') {
+          Object.keys(patch).forEach((key) => store.set(key, patch[key]));
+          return;
+        }
+        try {
+          const next = Object.assign({}, readState(), patch);
+          if (window.localStorage) {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          }
+        } catch (_) {}
+      }
+
+      function sanitizeCollectionEntry(entry) {
+        if (!entry || typeof entry !== 'object') return null;
+        const uid = typeof entry.uid === 'string' && entry.uid ? entry.uid : null;
+        const id = Number(entry.id);
+        const level = Number(entry.level);
+        if (!uid || Number.isNaN(id) || Number.isNaN(level)) return null;
+        const normalized = {
+          uid,
+          id,
+          level,
+          name: typeof entry.name === 'string' ? entry.name : null,
+          createdAt: Number.isFinite(entry.createdAt) ? Number(entry.createdAt) : null,
+        };
+        if (entry.shiny != null) normalized.shiny = entry.shiny;
+        if (entry.ivHp != null) normalized.ivHp = entry.ivHp;
+        if (entry.ivAttack != null) normalized.ivAttack = entry.ivAttack;
+        if (entry.ivDefense != null) normalized.ivDefense = entry.ivDefense;
+        if (entry.ivs && typeof entry.ivs === 'object') {
+          normalized.ivs = {
+            hp: entry.ivs.hp,
+            attack: entry.ivs.attack,
+            defense: entry.ivs.defense,
+          };
+        }
+        return normalized;
+      }
+
+      function getCollection(state) {
+        const source = state && Array.isArray(state.playerPokemon) ? state.playerPokemon : [];
+        const clean = [];
+        for (let i = 0; i < source.length; i++) {
+          const entry = sanitizeCollectionEntry(source[i]);
+          if (entry) clean.push(entry);
+        }
+        return clean;
+      }
+
+      const state = readState();
+      const view = state && typeof state === 'object' ? (state.viewPokemon || {}) : {};
+      const PD = window.PokemonData || {};
+
+      const collection = getCollection(state);
+      let activeUid = typeof view.uid === 'string' && view.uid ? view.uid : '';
+      let existingEntry = activeUid ? collection.find((item) => item.uid === activeUid) : null;
+
+      const fallbackMon = (Array.isArray(PD.all) && PD.all.length) ? PD.all[0] : { id: 1, name: 'Pokemon', types: ['normal'], fastMoves: [], chargedMoves: [] };
+      const id = Number(view.id || (existingEntry ? existingEntry.id : fallbackMon.id)) || fallbackMon.id;
+      const overrides = existingEntry && typeof existingEntry === 'object' ? existingEntry : null;
+      const mon = (PD.getPokemonById ? PD.getPokemonById(id, overrides) : null) || (PD.byId && PD.byId.get ? PD.byId.get(id) : null) || fallbackMon;
+      const name = (mon && mon.name) || (view.name || fallbackMon.name);
+      const types = Array.isArray(mon.types) ? mon.types : [];
+      const isShiny = !!(mon && mon.shiny);
+      const fallbackStats = { hp: 100, attack: 50, defense: 50, speed: 50 };
+
+      let currentLevel = 20;
+      function formatLevel(level) {
+        const rounded = Math.round(level);
+        if (Math.abs(level - rounded) < 0.01) return String(rounded);
+        return level.toFixed(1).replace(/0+$/, '').replace(/\.$/, '');
+      }
+
+      function sanitizeLevel(value, fallback) {
+        const base = typeof fallback === 'number' ? fallback : currentLevel || 20;
+        let n = parseFloat(value);
+        if (Number.isNaN(n)) n = base;
+        n = Math.max(1, Math.min(n, 50));
+        n = Math.round(n * 2) / 2;
+        return n;
+      }
+
+      const initialLevel = existingEntry ? existingEntry.level : (view && view.level != null ? Number(view.level) : 20);
+      currentLevel = sanitizeLevel(initialLevel, 20);
+
+      const $ = (id) => document.getElementById(id);
+      const cpEl = $('cpValue');
+      const nameEl = $('nameRow');
+      const metaRowEl = $('metaRow');
+      const hpEl = $('statHp');
+      const atkEl = $('statAtk');
+      const defEl = $('statDef');
+      const spdEl = $('statSpd');
+      const levelInput = $('levelInput');
+      const saveBtn = $('savePokemonBtn');
+      const feedbackEl = $('saveFeedback');
+      const powerBtn = $('powerBtn');
+      const typeWrap = $('typeChips');
+      const backBtn = $('closeBtn');
+      const fastMoveEl = $('fastMove');
+      const fastPowerEl = $('fastPower');
+      const chMove1El = $('chargeMove1');
+      const chPower1El = $('chargePower1');
+      const chMove2El = $('chargeMove2');
+      const chPower2El = $('chargePower2');
+
+      if (nameEl) nameEl.textContent = name;
+
       const fastId = mon && Array.isArray(mon.fastMoves) && mon.fastMoves[0];
       const fastDef = fastId && PD.FAST_MOVES_BY_ID ? PD.FAST_MOVES_BY_ID[fastId] : null;
       const chargedIds = (mon && Array.isArray(mon.chargedMoves)) ? mon.chargedMoves.slice(0, 2) : [];
       const ch1Def = chargedIds[0] && PD.CHARGED_MOVES_BY_ID ? PD.CHARGED_MOVES_BY_ID[chargedIds[0]] : null;
       const ch2Def = chargedIds[1] && PD.CHARGED_MOVES_BY_ID ? PD.CHARGED_MOVES_BY_ID[chargedIds[1]] : null;
 
-      // Populate UI
-      const $ = (id) => document.getElementById(id);
-      // Simple CP derivation for display purposes
-      const cp = PD.calcGoCp && stats ? PD.calcGoCp(stats) : 10;
-      $('cpValue').textContent = cp;
-      // Animated sprite portrait (use battle sprite URLs with PNG fallback)
-      (function updatePortrait(){
-        const host = $('portrait');
-        if (!host) return;
-        host.textContent = '';
-        const img = document.createElement('img');
-        img.alt = name;
-        try {
-          // TODO - shiny support
-          const url = (PD.getBattleSpriteUrl ? PD.getBattleSpriteUrl(name, 'opponent', false) : null) || (PD.getForwardSpriteUrl ? PD.getForwardSpriteUrl(name) : '');
-          img.src = url;
-        } catch (_) {}
-        // Fallback to static forward-facing PNG if GIF fails
-        img.onerror = function(){
-          if (PD.getForwardSpriteUrl) img.src = PD.getForwardSpriteUrl(name);
-          img.onerror = null;
-        };
-        host.appendChild(img);
+      if (fastMoveEl) fastMoveEl.textContent = (fastDef && fastDef.name) || 'Fast Move';
+      if (fastPowerEl) fastPowerEl.textContent = (fastDef && fastDef.power != null) ? fastDef.power : '';
+      if (chMove1El) chMove1El.textContent = (ch1Def && ch1Def.name) || 'Charge Move 1';
+      if (chPower1El) chPower1El.textContent = (ch1Def && ch1Def.power != null) ? ch1Def.power : '';
+      if (chMove2El) chMove2El.textContent = (ch2Def && ch2Def.name) || 'Charge Move 2';
+      if (chPower2El) chPower2El.textContent = (ch2Def && ch2Def.power != null) ? ch2Def.power : '';
 
-        // Position the portrait centered between CP text and name text
-        function positionPortrait() {
-          const topCard = document.querySelector('.top-card');
-          const cpEl = document.querySelector('.cp-value');
-          const nameEl = document.getElementById('nameRow');
-          if (!topCard || !cpEl || !nameEl) return;
-          const rTop = topCard.getBoundingClientRect();
-          const rCp = cpEl.getBoundingClientRect();
-          const rName = nameEl.getBoundingClientRect();
-          const mid = ((rCp.bottom + rName.top) / 2) - rTop.top;
-          host.style.top = `${mid}px`;
-        }
-        // Initial position after layout and on resize
-        requestAnimationFrame(positionPortrait);
-        window.addEventListener('resize', positionPortrait);
-        // Reposition once sprite loads (in case fonts/layout shift)
-        img.addEventListener('load', () => requestAnimationFrame(positionPortrait), { once: true });
-      })();
-      $('nameRow').textContent = name;
-      $('metaRow').textContent = `Lvl ${level}`;
-      // Fill numeric GO stats
-      const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-      setTxt('statHp', hpMax);
-      setTxt('statAtk', atk);
-      setTxt('statDef', def);
-      setTxt('statSpd', spd);
-      // Top-card background gradient based on first type
+      if (typeWrap) {
+        typeWrap.innerHTML = '';
+        types.forEach((t) => {
+          const chip = document.createElement('div');
+          chip.className = 'chip t-' + t;
+          chip.textContent = String(t || '').toUpperCase();
+          typeWrap.appendChild(chip);
+        });
+      }
+
       (function updateTopGradient(){
         const COLORS = {
           normal:'#a8a77a', fire:'#ee8130', water:'#6390f0', electric:'#f7d02c', grass:'#7ac74c', ice:'#96d9d6',
@@ -249,32 +333,123 @@
           rock:'#b6a136', ghost:'#735797', dragon:'#6f35fc', dark:'#705746', steel:'#b7b7ce', fairy:'#d685ad'
         };
         const topCard = document.querySelector('.top-card');
-        const t = (types && types[0] || '').toLowerCase();
-        const base = COLORS[t];
+        const primary = (types && types[0] || '').toLowerCase();
+        const base = COLORS[primary];
         if (topCard && base) {
           topCard.style.background = `linear-gradient(180deg, ${base} 0%, #ffffff 100%)`;
         }
       })();
-      $('fastMove').textContent = (fastDef && fastDef.name) || 'Fast Move';
-      $('chargeMove1').textContent = (ch1Def && ch1Def.name) || 'Charge Move 1';
-      $('chargeMove2').textContent = (ch2Def && ch2Def.name) || 'Charge Move 2';
-      $('fastPower').textContent = (fastDef && fastDef.power != null) ? fastDef.power : '';
-      $('chargePower1').textContent = (ch1Def && ch1Def.power != null) ? ch1Def.power : '';
-      $('chargePower2').textContent = (ch2Def && ch2Def.power != null) ? ch2Def.power : '';
 
-      // Type chips
-      const chipWrap = document.getElementById('typeChips');
-      chipWrap.innerHTML = '';
-      (types || []).forEach(t => {
-        const chip = document.createElement('div');
-        chip.className = `chip t-${t}`;
-        chip.textContent = t.toUpperCase();
-        chipWrap.appendChild(chip);
-      });
+      function computeStats(level) {
+        try {
+          if (PD.getGoStatsById) {
+            const stats = PD.getGoStatsById(id, level);
+            if (stats && typeof stats === 'object') {
+              return {
+                hp: Number(stats.hp != null ? stats.hp : fallbackStats.hp),
+                attack: Number(stats.attack != null ? stats.attack : fallbackStats.attack),
+                defense: Number(stats.defense != null ? stats.defense : fallbackStats.defense),
+                speed: Number(stats.speed != null ? stats.speed : fallbackStats.speed),
+              };
+            }
+          }
+        } catch (_) { /* ignore */ }
+        return Object.assign({}, fallbackStats);
+      }
 
-      // Close (Back)
-      const backBtn = document.getElementById('closeBtn');
-      backBtn.addEventListener('click', () => {
+      function applyLevel(level, opts) {
+        const sanitized = sanitizeLevel(level, currentLevel);
+        currentLevel = sanitized;
+        if (levelInput) {
+          const active = document.activeElement === levelInput;
+          const shouldUpdate = (opts && opts.forceValue) || (!active && !(opts && opts.skipValueUpdate));
+          if (shouldUpdate) levelInput.value = formatLevel(sanitized);
+        }
+        const stats = computeStats(sanitized);
+        const cp = (PD.calcGoCp && stats) ? PD.calcGoCp(stats) : 10;
+        if (cpEl) cpEl.textContent = Math.max(10, Math.round(cp));
+        if (metaRowEl) metaRowEl.textContent = `Lvl ${formatLevel(sanitized)}`;
+        if (hpEl) hpEl.textContent = Math.max(1, Math.round(stats.hp));
+        if (atkEl) atkEl.textContent = Math.round(stats.attack);
+        if (defEl) defEl.textContent = Math.round(stats.defense);
+        if (spdEl) spdEl.textContent = Math.round(stats.speed);
+        return sanitized;
+      }
+
+      let feedbackTimer = null;
+      function showFeedback(message, isError) {
+        if (!feedbackEl) return;
+        if (feedbackTimer) { clearTimeout(feedbackTimer); feedbackTimer = null; }
+        if (!message) {
+          feedbackEl.textContent = '';
+          feedbackEl.removeAttribute('data-error');
+          return;
+        }
+        feedbackEl.textContent = message;
+        if (isError) feedbackEl.setAttribute('data-error', '1');
+        else feedbackEl.removeAttribute('data-error');
+        feedbackTimer = window.setTimeout(() => {
+          feedbackEl.textContent = '';
+          feedbackEl.removeAttribute('data-error');
+          feedbackTimer = null;
+        }, 2200);
+      }
+
+      function persistView(extra) {
+        const nextView = Object.assign({}, view || {});
+        nextView.id = id;
+        nextView.name = name;
+        nextView.level = currentLevel;
+        if (activeUid) nextView.uid = activeUid;
+        if (extra && extra.uid) nextView.uid = extra.uid;
+        writeState({ viewPokemon: nextView });
+      }
+
+      if (levelInput) {
+        levelInput.value = formatLevel(currentLevel);
+        levelInput.addEventListener('input', () => {
+          applyLevel(levelInput.value, { skipValueUpdate: true });
+        });
+        levelInput.addEventListener('change', () => {
+          applyLevel(levelInput.value, { forceValue: true });
+          persistView();
+        });
+        levelInput.addEventListener('blur', () => {
+          applyLevel(levelInput.value, { forceValue: true });
+        });
+      }
+
+      applyLevel(currentLevel, { forceValue: true });
+
+      (function updatePortrait(){
+        const host = $('portrait');
+        if (!host) return;
+        host.textContent = '';
+        const img = document.createElement('img');
+        img.alt = name;
+        try {
+          const url = (PD.getBattleSpriteUrl ? PD.getBattleSpriteUrl(name, 'opponent', isShiny) : null) || (PD.getForwardSpriteUrl ? PD.getForwardSpriteUrl(name) : '');
+          img.src = url;
+        } catch (_) {}
+        host.appendChild(img);
+
+        function positionPortrait() {
+          const topCard = document.querySelector('.top-card');
+          const cpValueEl = document.querySelector('.cp-value');
+          const nameRowEl = document.getElementById('nameRow');
+          if (!topCard || !cpValueEl || !nameRowEl) return;
+          const rTop = topCard.getBoundingClientRect();
+          const rCp = cpValueEl.getBoundingClientRect();
+          const rName = nameRowEl.getBoundingClientRect();
+          const mid = ((rCp.bottom + rName.top) / 2) - rTop.top;
+          host.style.top = `${mid}px`;
+        }
+        window.requestAnimationFrame(positionPortrait);
+        window.addEventListener('resize', positionPortrait);
+        img.addEventListener('load', () => window.requestAnimationFrame(positionPortrait), { once: true });
+      })();
+
+      if (backBtn) backBtn.addEventListener('click', () => {
         if (document.referrer) {
           history.back();
         } else {
@@ -282,13 +457,70 @@
         }
       });
 
-      // Power Up demo
-      const powerBtn = document.getElementById('powerBtn');
-      powerBtn.addEventListener('click', () => {
-        // Simple demo: bump CP a bit
-        const newCp = Math.round(Number(document.getElementById('cpValue').textContent) * 1.05);
-        document.getElementById('cpValue').textContent = newCp;
-      });
+      if (saveBtn) {
+        function updateSaveLabel() {
+          saveBtn.textContent = activeUid ? 'Update Pokemon' : 'Save Pokemon';
+        }
+        updateSaveLabel();
+        saveBtn.addEventListener('click', () => {
+          if (!id) {
+            showFeedback('Unable to save this Pokemon.', true);
+            return;
+          }
+          const levelToSave = applyLevel(levelInput ? levelInput.value : currentLevel, { forceValue: true });
+          const latestState = readState();
+          const latestCollection = getCollection(latestState);
+          const timestamp = Date.now();
+          let uid = activeUid;
+          let existed = false;
+          const nextCollection = latestCollection.slice();
+          if (uid) {
+            const index = nextCollection.findIndex((item) => item.uid === uid);
+            if (index !== -1) {
+              existed = true;
+              const prev = nextCollection[index];
+              nextCollection[index] = {
+                uid,
+                id,
+                level: levelToSave,
+                name,
+                createdAt: prev && prev.createdAt ? prev.createdAt : timestamp,
+              };
+            } else {
+              uid = '';
+            }
+          }
+          if (!uid) {
+            uid = `pk_${timestamp.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+            nextCollection.push({
+              uid,
+              id,
+              level: levelToSave,
+              name,
+              createdAt: timestamp,
+            });
+          }
+          activeUid = uid;
+          existingEntry = nextCollection.find((item) => item.uid === uid) || existingEntry;
+          const nextView = Object.assign({}, view || {}, { id, name, level: levelToSave, uid });
+          writeState({ playerPokemon: nextCollection, viewPokemon: nextView });
+          updateSaveLabel();
+          showFeedback(existed ? 'Pokemon updated!' : 'Pokemon saved!', false);
+        });
+      }
+
+      if (powerBtn) {
+        powerBtn.addEventListener('click', () => {
+          const nextLevel = Math.min(50, currentLevel + 0.5);
+          if (nextLevel === currentLevel) {
+            showFeedback('Pokemon is at max level.', false);
+            return;
+          }
+          const applied = applyLevel(nextLevel, { forceValue: true });
+          persistView();
+          showFeedback(`Level ${formatLevel(applied)} selected.`, false);
+        });
+      }
     })();
   </script>
 </body>

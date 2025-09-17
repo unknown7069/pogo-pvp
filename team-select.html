@@ -32,203 +32,411 @@
     (function(){
       const MAX_TEAM = 3;
 
+      const store = window.AppState || null;
       const PD = window.PokemonData || {};
       const grid = document.getElementById('pokemonGrid');
       const slots = Array.from(document.querySelectorAll('.slot'));
       const cancelBtn = document.getElementById('cancelBtn');
       const doneBtn = document.getElementById('doneBtn');
+      if (!grid) return;
 
-      const list = Array.isArray(PD.all) && PD.all.length ? PD.all : [];
-      // Toggle sprite rendering in the grid
       const SHOW_SPRITES = true;
 
-      // Map for fast button lookups by id
-      const buttonsById = new Map();
-      // Track previous selected set to diff UI updates
+      function readState() {
+        if (store && typeof store.read === 'function') return store.read();
+        if (store && typeof store.all === 'function') return store.all();
+        try {
+          const raw = window.localStorage ? window.localStorage.getItem('pogo-pvp-state') : null;
+          return raw ? JSON.parse(raw) : {};
+        } catch (_) {
+          return {};
+        }
+      }
+
+      function writeState(patch) {
+        if (!patch || Object(patch) !== patch) return;
+        if (store && typeof store.write === 'function') { store.write(patch); return; }
+        if (store && typeof store.merge === 'function') { store.merge(patch); return; }
+        if (store && typeof store.set === 'function') {
+          Object.keys(patch).forEach((key) => store.set(key, patch[key]));
+          return;
+        }
+        try {
+          const next = Object.assign({}, readState(), patch);
+          if (window.localStorage) {
+            window.localStorage.setItem('pogo-pvp-state', JSON.stringify(next));
+          }
+        } catch (_) {}
+      }
+
+      function sanitizeLevelValue(value) {
+        let n = Number(value);
+        if (Number.isNaN(n)) return null;
+        n = Math.max(1, Math.min(n, 50));
+        n = Math.round(n * 2) / 2;
+        return n;
+      }
+
+      function sanitizeEntry(entry) {
+        if (!entry || typeof entry !== 'object') return null;
+        const uid = typeof entry.uid === 'string' && entry.uid ? entry.uid : null;
+        const id = Number(entry.id);
+        const level = sanitizeLevelValue(entry.level);
+        if (!uid || Number.isNaN(id) || level == null) return null;
+        const normalized = {
+          uid,
+          id,
+          level,
+          name: typeof entry.name === 'string' ? entry.name : null,
+          createdAt: Number.isFinite(entry.createdAt) ? Number(entry.createdAt) : null,
+        };
+        if (entry.shiny != null) normalized.shiny = entry.shiny;
+        if (entry.ivHp != null) normalized.ivHp = entry.ivHp;
+        if (entry.ivAttack != null) normalized.ivAttack = entry.ivAttack;
+        if (entry.ivDefense != null) normalized.ivDefense = entry.ivDefense;
+        if (entry.ivs && typeof entry.ivs === 'object') {
+          normalized.ivs = {
+            hp: entry.ivs.hp,
+            attack: entry.ivs.attack,
+            defense: entry.ivs.defense,
+          };
+        }
+        return normalized;
+      }
+
+      function getCollection(state) {
+        const src = state && Array.isArray(state.playerPokemon) ? state.playerPokemon : [];
+        const clean = [];
+        for (let i = 0; i < src.length; i++) {
+          const entry = sanitizeEntry(src[i]);
+          if (entry) clean.push(entry);
+        }
+        return clean;
+      }
+
+      function collectionEquals(a, b) {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+          const x = a[i];
+          const y = b[i];
+          if (!x || !y) return false;
+          if (x.uid !== y.uid || x.id !== y.id || x.level !== y.level) return false;
+        }
+        return true;
+      }
+
+      function arrayEquals(a, b) {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+          if (a[i] !== b[i]) return false;
+        }
+        return true;
+      }
+
+      function formatLevel(level) {
+        const rounded = Math.round(level);
+        if (Math.abs(level - rounded) < 0.01) return String(rounded);
+        return level.toFixed(1).replace(/0+$/, '').replace(/\.$/, '');
+      }
+
+      function getMonById(source) {
+        const entry = source && typeof source === 'object' ? source : null;
+        const key = entry ? Number(entry.id) : Number(source);
+        if (!Number.isFinite(key)) return { id: key, name: 'Pokemon', types: ['normal'], fastMoves: [], chargedMoves: [] };
+        if (PD.getPokemonById) {
+          const found = PD.getPokemonById(key, entry || undefined);
+          if (found) return found;
+        }
+        if (PD.byId && typeof PD.byId.get === 'function') {
+          const viaMap = PD.byId.get(key);
+          if (viaMap) return viaMap;
+        }
+        return { id: key, name: 'Pokemon', types: ['normal'], fastMoves: [], chargedMoves: [] };
+      }
+
+      function computeCp(id, level) {
+        try {
+          if (PD.getGoStatsById) {
+            const stats = PD.getGoStatsById(id, level);
+            if (stats && PD.calcGoCp) {
+              return Math.max(10, Math.round(PD.calcGoCp(stats)));
+            }
+          }
+        } catch (_) {}
+        return 10;
+      }
+
+      function getSpriteUrl(mon) {
+        const name = (mon && mon.name) || 'Pokemon';
+        const shiny = !!(mon && mon.shiny);
+        if (PD.getBattleSpriteUrl) {
+          try {
+            const url = PD.getBattleSpriteUrl(name, 'opponent', shiny);
+            if (url) return url;
+          } catch (_) {}
+        }
+        if (PD.getForwardSpriteUrl) {
+          try {
+            const url = PD.getForwardSpriteUrl(name);
+            if (url) return url;
+          } catch (_) {}
+        }
+        return '';
+      }
+
+      function buildEntriesMap(list) {
+        const map = new Map();
+        for (let i = 0; i < list.length; i++) {
+          map.set(list[i].uid, list[i]);
+        }
+        return map;
+      }
+
+      const stateSnapshot = readState();
+      let collection = getCollection(stateSnapshot);
+      let entriesByUid = buildEntriesMap(collection);
+      const buttonsByUid = new Map();
+      let workingTeam = [];
       let prevSelected = new Set();
 
+      function updateGridSelection() {
+        const selected = new Set(workingTeam);
+        buttonsByUid.forEach((btn, uid) => {
+          if (selected.has(uid)) {
+            btn.classList.add('selected');
+            btn.setAttribute('aria-pressed', 'true');
+          } else {
+            btn.classList.remove('selected');
+            btn.setAttribute('aria-pressed', 'false');
+          }
+        });
+        prevSelected = selected;
+      }
+
       function renderGrid() {
-        // Clear and batch-insert for minimal reflow
         grid.textContent = '';
+        buttonsByUid.clear();
+        if (!collection.length) {
+          const empty = document.createElement('div');
+          empty.textContent = 'No Pokemon saved yet.';
+          empty.className = 'empty-state';
+          empty.style.padding = '32px 16px';
+          empty.style.textAlign = 'center';
+          empty.style.color = '#555';
+          empty.style.fontWeight = '600';
+          grid.appendChild(empty);
+          return;
+        }
         const frag = document.createDocumentFragment();
-        list.forEach((mon) => {
+        collection.forEach((entry) => {
+          const mon = getMonById(entry);
           const card = document.createElement('div');
           card.className = 'pokemon-card';
 
           const btn = document.createElement('button');
           btn.className = 'pokemon-btn';
           btn.type = 'button';
-          btn.dataset.id = String(mon.id);
-          btn.dataset.name = mon.name;
+          btn.dataset.uid = entry.uid;
+          btn.dataset.id = String(entry.id);
+          btn.dataset.level = String(entry.level);
+          btn.dataset.name = mon.name || 'Pokemon';
           btn.setAttribute('aria-pressed', 'false');
+          btn.setAttribute('aria-label', `${mon.name || 'Pokemon'} level ${formatLevel(entry.level)}`);
 
-          // Compute CP from GO stats
-          let cp = 10;
-          const level = 20;
-          try {
-            const stats = PD.getGoStatsById ? PD.getGoStatsById(mon.id, level) : null;
-            cp = PD.calcGoCp && stats ? PD.calcGoCp(stats) : 10;
-          } catch (_) { /* ignore */ }
-
-          // Get sprite URL from central helper
-          const imgUrl = PD.getForwardSpriteUrl ? PD.getForwardSpriteUrl(mon) : '';
-
-          // Top: CP (overlay inside container)
+          const cp = computeCp(entry.id, entry.level);
           const cpEl = document.createElement('div');
           cpEl.className = 'cp';
-          cpEl.textContent = `CP ${cp}`;
+          cpEl.textContent = `Lvl ${formatLevel(entry.level)} | CP ${cp}`;
 
-          // Bottom: name (overlay inside container)
           const nameEl = document.createElement('div');
           nameEl.className = 'name';
-          nameEl.textContent = mon.name;
+          nameEl.textContent = mon.name || 'Pokemon';
 
-          if (SHOW_SPRITES && imgUrl) {
-            const spriteWrap = document.createElement('div');
-            spriteWrap.className = 'sprite-wrap';
-            spriteWrap.style.backgroundImage = `url('${imgUrl}')`;
-            btn.appendChild(spriteWrap);
+          if (SHOW_SPRITES) {
+            const spriteUrl = getSpriteUrl(mon);
+            if (spriteUrl) {
+              const spriteWrap = document.createElement('div');
+              spriteWrap.className = 'sprite-wrap';
+              spriteWrap.style.backgroundImage = `url('${spriteUrl}')`;
+              btn.appendChild(spriteWrap);
+            }
           }
 
-          // Compose container: button + overlays
           card.appendChild(btn);
           card.appendChild(cpEl);
           card.appendChild(nameEl);
+          card.title = `${mon.name || 'Pokemon'} (Lvl ${formatLevel(entry.level)})`;
 
-          // Track button for selection highlighting
-          buttonsById.set(Number(mon.id), btn);
+          buttonsByUid.set(entry.uid, btn);
           frag.appendChild(card);
         });
         grid.appendChild(frag);
-      }
-
-      let workingTeam = [];
-
-      function getNameById(id){
-        const mon = (PD.byId && PD.byId.get) ? PD.byId.get(Number(id)) : null;
-        return (mon && mon.name) || 'Unknown';
-      }
-
-      function loadExisting() {
-        const state = readState();
-        const savedIds = Array.isArray(state.selectedTeamIds) ? state.selectedTeamIds : [];
-        workingTeam = savedIds.slice(0, MAX_TEAM).map(Number).filter(n => !Number.isNaN(n));
-        updateSlots();
         updateGridSelection();
+      }
+
+      function arrayFromStateTeam(state) {
+        const next = [];
+        const members = Array.isArray(state.selectedTeamMembers) ? state.selectedTeamMembers : null;
+        if (members) {
+          for (let i = 0; i < members.length && next.length < MAX_TEAM; i++) {
+            const uid = members[i] && typeof members[i].uid === 'string' ? members[i].uid : null;
+            if (uid && entriesByUid.has(uid) && !next.includes(uid)) next.push(uid);
+          }
+        }
+        if (!next.length) {
+          const savedUids = Array.isArray(state.selectedTeamUids) ? state.selectedTeamUids : [];
+          for (let i = 0; i < savedUids.length && next.length < MAX_TEAM; i++) {
+            const uid = typeof savedUids[i] === 'string' ? savedUids[i] : null;
+            if (uid && entriesByUid.has(uid) && !next.includes(uid)) next.push(uid);
+          }
+        }
+        if (!next.length) {
+          const legacyIds = Array.isArray(state.selectedTeamIds) ? state.selectedTeamIds.map(Number).filter((n) => !Number.isNaN(n)) : [];
+          const used = new Set();
+          legacyIds.forEach((id) => {
+            if (next.length >= MAX_TEAM) return;
+            for (let i = 0; i < collection.length; i++) {
+              const entry = collection[i];
+              if (entry.id === id && !used.has(entry.uid)) {
+                next.push(entry.uid);
+                used.add(entry.uid);
+                break;
+              }
+            }
+          });
+        }
+        return next.slice(0, MAX_TEAM);
       }
 
       function updateSlots() {
         for (let i = 0; i < MAX_TEAM; i++) {
           const slot = slots[i];
-          const id = workingTeam[i];
-          // Reset slot contents each update
+          if (!slot) continue;
+          const uid = workingTeam[i];
           slot.textContent = '';
+          slot.removeAttribute('title');
+          slot.removeAttribute('data-uid');
+          slot.classList.remove('filled');
+          while (slot.firstChild) slot.removeChild(slot.firstChild);
 
-          if (typeof id === 'number') {
-            // Try to show a forward-facing sprite, fallback to name
-            const mon = (PD.getPokemonById ? PD.getPokemonById(id) : (PD.byId && PD.byId.get ? PD.byId.get(Number(id)) : null));
-            const name = (mon && mon.name) || getNameById(id);
+          if (!uid) continue;
+          const entry = entriesByUid.get(uid);
+          if (!entry) continue;
+          const mon = getMonById(entry);
+          const name = entry.name || (mon && mon.name) || 'Pokemon';
+          const label = `${name} (Lvl ${formatLevel(entry.level)})`;
+          slot.classList.add('filled');
+          slot.setAttribute('data-uid', uid);
+          slot.title = label;
 
-            let showedImage = false;
-            if (mon && typeof PD.getForwardSpriteUrl === 'function') {
-              try {
-                const url = PD.getForwardSpriteUrl(mon);
-                if (url) {
-                  const img = document.createElement('img');
-                  img.className = 'slot-img';
-                  img.alt = name;
-                  img.decoding = 'async';
-                  img.loading = 'lazy';
-                  img.draggable = false;
-                  img.src = url;
-                  img.addEventListener('error', () => {
-                    // Fallback to text name if image fails to load
-                    if (slot.contains(img)) slot.removeChild(img);
-                    slot.textContent = name;
-                  });
-                  slot.appendChild(img);
-                  showedImage = true;
-                }
-              } catch (_) { /* ignore */ }
+          const spriteUrl = getSpriteUrl(mon);
+          if (spriteUrl) {
+            try {
+              const img = document.createElement('img');
+              img.className = 'slot-img';
+              img.alt = label;
+              img.decoding = 'async';
+              img.loading = 'lazy';
+              img.draggable = false;
+              img.src = spriteUrl;
+              img.addEventListener('error', () => {
+                if (slot.contains(img)) slot.removeChild(img);
+                slot.textContent = label;
+              });
+              slot.appendChild(img);
+            } catch (_) {
+              slot.textContent = label;
             }
-
-            if (!showedImage) {
-              slot.textContent = name;
-            }
-            slot.title = name;
-            slot.classList.add('filled');
           } else {
-            slot.textContent = '';
-            slot.removeAttribute('title');
-            slot.classList.remove('filled');
+            slot.textContent = label;
           }
         }
       }
 
-      function updateGridSelection() {
-        const selected = new Set(workingTeam);
-        // Remove selection for items no longer selected
-        prevSelected.forEach((id) => {
-          if (!selected.has(id)) {
-            const btn = buttonsById.get(Number(id));
-            if (btn) {
-              btn.classList.remove('selected');
-              btn.setAttribute('aria-pressed', 'false');
-            }
-          }
-        });
-        // Add selection for new items
-        selected.forEach((id) => {
-          if (!prevSelected.has(id)) {
-            const btn = buttonsById.get(Number(id));
-            if (btn) {
-              btn.classList.add('selected');
-              btn.setAttribute('aria-pressed', 'true');
-            }
-          }
-        });
-        prevSelected = selected;
+      function loadExisting() {
+        const next = arrayFromStateTeam(readState());
+        if (!arrayEquals(workingTeam, next)) workingTeam = next;
+        updateSlots();
+        updateGridSelection();
       }
 
-      // Clicking a pokemon adds/removes from working team (max MAX_TEAM)
-      grid.addEventListener('click', (e) => {
-        const btn = e.target.closest('.pokemon-btn');
+      function pruneWorkingTeam() {
+        const filtered = workingTeam.filter((uid) => entriesByUid.has(uid)).slice(0, MAX_TEAM);
+        if (!arrayEquals(workingTeam, filtered)) {
+          workingTeam = filtered;
+          updateSlots();
+          updateGridSelection();
+        }
+      }
+
+      function getSelectedEntries() {
+        return workingTeam.map((uid) => entriesByUid.get(uid)).filter(Boolean);
+      }
+
+      function getNameById(source) {
+        const mon = getMonById(source);
+        return (mon && mon.name) || 'Pokemon';
+      }
+
+      renderGrid();
+      loadExisting();
+
+      grid.addEventListener('click', (event) => {
+        const btn = event.target.closest('.pokemon-btn');
         if (!btn) return;
-        const id = Number(btn.dataset.id || 0);
-        const i = workingTeam.indexOf(id);
-        if (i !== -1) {
-          workingTeam.splice(i, 1);
+        const uid = btn.dataset.uid;
+        if (!uid) return;
+        const index = workingTeam.indexOf(uid);
+        if (index !== -1) {
+          workingTeam.splice(index, 1);
         } else if (workingTeam.length < MAX_TEAM) {
-          workingTeam.push(id);
+          workingTeam.push(uid);
         } else {
-          // Team is full; ignore extra selections
           return;
         }
         updateSlots();
         updateGridSelection();
       });
 
-      // Bottom actions
-      cancelBtn.addEventListener('click', () => {
-        // Do not persist working changes; just return
+      if (cancelBtn) cancelBtn.addEventListener('click', () => {
         window.location.href = 'rocket-select.html';
       });
-      doneBtn.addEventListener('click', () => {
-        const finalTeamIds = workingTeam.slice(0, MAX_TEAM).map(Number);
-        const finalTeamNames = finalTeamIds.map(getNameById);
-        writeState({ selectedTeamIds: finalTeamIds, selectedTeam: finalTeamNames });
-        // Navigate directly; team is in localStorage now
+
+      if (doneBtn) doneBtn.addEventListener('click', () => {
+        const selected = getSelectedEntries();
+        const finalTeamUids = selected.map((entry) => entry.uid);
+        const finalTeamIds = selected.map((entry) => entry.id);
+        const finalTeamNames = selected.map((entry) => entry.name || getNameById(entry));
+        const finalTeamMembers = selected.map((entry) => ({
+          uid: entry.uid,
+          id: entry.id,
+          level: entry.level,
+          name: entry.name || getNameById(entry),
+        }));
+        writeState({
+          selectedTeamMembers: finalTeamMembers,
+          selectedTeamUids: finalTeamUids,
+          selectedTeamIds: finalTeamIds,
+          selectedTeam: finalTeamNames,
+        });
         window.location.href = 'battle.html';
       });
 
-      // Enable click-and-drag scrolling using shared helper
+      if (store && typeof store.subscribe === 'function') {
+        store.subscribe((snapshot) => {
+          const nextCollection = getCollection(snapshot);
+          if (!collectionEquals(collection, nextCollection)) {
+            collection = nextCollection;
+            entriesByUid = buildEntriesMap(collection);
+            renderGrid();
+            pruneWorkingTeam();
+          }
+        });
+      }
+
       if (window.UI && typeof window.UI.attachDragScroll === 'function') {
         window.UI.attachDragScroll(grid);
       }
-
-      // Initial render + hydrate from saved state
-      renderGrid();
-      loadExisting();
     })();
   </script>
 </body>
