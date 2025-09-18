@@ -128,6 +128,28 @@
           </div>
         </div>
 
+        <div class="card">
+          <div class="label">IVs</div>
+          <div class="stats-row">
+            <div class="stats-col">
+              <div class="value" id="ivHp">—</div>
+              <div class="label">HP</div>
+            </div>
+            <div class="stats-col">
+              <div class="value" id="ivAtk">—</div>
+              <div class="label">Attack</div>
+            </div>
+            <div class="stats-col">
+              <div class="value" id="ivDef">—</div>
+              <div class="label">Defense</div>
+            </div>
+            <div class="stats-col">
+              <div class="value" id="ivSpd">—</div>
+              <div class="label">Speed</div>
+            </div>
+          </div>
+        </div>
+
         <div class="card moves">
           <div class="label" style="margin-bottom:6px;">Moves</div>
           <div class="move">
@@ -292,6 +314,10 @@
       const atkEl = $('statAtk');
       const defEl = $('statDef');
       const spdEl = $('statSpd');
+      const ivHpEl = $('ivHp');
+      const ivAtkEl = $('ivAtk');
+      const ivDefEl = $('ivDef');
+      const ivSpdEl = $('ivSpd');
       const levelInput = $('levelInput');
       const saveBtn = $('savePokemonBtn');
       const feedbackEl = $('saveFeedback');
@@ -319,6 +345,14 @@
       if (chPower1El) chPower1El.textContent = (ch1Def && ch1Def.power != null) ? ch1Def.power : '';
       if (chMove2El) chMove2El.textContent = (ch2Def && ch2Def.name) || 'Charge Move 2';
       if (chPower2El) chPower2El.textContent = (ch2Def && ch2Def.power != null) ? ch2Def.power : '';
+
+      if (ivHpEl) ivHpEl.textContent = (existingEntry && Number.isFinite(existingEntry.ivHp)) ? String(existingEntry.ivHp) : '—';
+      if (ivAtkEl) ivAtkEl.textContent = (existingEntry && Number.isFinite(existingEntry.ivAttack)) ? String(existingEntry.ivAttack) : '—';
+      if (ivDefEl) ivDefEl.textContent = (existingEntry && Number.isFinite(existingEntry.ivDefense)) ? String(existingEntry.ivDefense) : '—';
+      // Average of all other IVs  
+      if (ivSpdEl) ivSpdEl.textContent = (existingEntry && Number.isFinite(existingEntry.ivHp) && Number.isFinite(existingEntry.ivAttack) && Number.isFinite(existingEntry.ivDefense))
+        ? String(Math.round((existingEntry.ivHp + existingEntry.ivAttack + existingEntry.ivDefense) / 3))
+        : '—'; 
 
       if (typeWrap) {
         typeWrap.innerHTML = '';
