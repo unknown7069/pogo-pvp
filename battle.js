@@ -1218,12 +1218,16 @@
     const nextPokemon = nextSlot && nextSlot.pokemon;
     if (!nextPokemon) return;
     const ballSpriteUrls = [
-      'https://archives.bulbagarden.net/media/upload/7/75/Pok%C3%A9_Ball_battle_V.png',
+      'https://archives.bulbagarden.net/media/upload/7/75/Poké_Ball_battle_V.png',
       'https://archives.bulbagarden.net/media/upload/6/60/Premier_Ball_battle_V.png',
       'https://archives.bulbagarden.net/media/upload/9/95/Great_Ball_battle_V.png',
       'https://archives.bulbagarden.net/media/upload/7/75/Ultra_Ball_battle_V.png',
       'https://archives.bulbagarden.net/media/upload/c/c4/Master_Ball_battle_V.png',
     ];
+    // Animation timing constants (ms).
+    const shrinkDuration = 500;
+    const ballDuration = 1000;
+    const growDuration = 500;
     // Close overlay and clear timers if any
     if (switchOverlay) switchOverlay.classList.remove('show');
     if (state.timers.switchCountdown) { clearInterval(state.timers.switchCountdown); state.timers.switchCountdown = null; }
@@ -1273,7 +1277,7 @@
       persistBattleState();
     };
     const throwBall = () => new Promise(resolve => {
-      const ballUrl = ballSpriteUrls[nextIndex % ballSpriteUrls.length];
+      const ballUrl = ballSpriteUrls[0];
       if (!stageEl || !spriteHost || !ballUrl) { resolve(); return; }
       const stageRect = stageEl.getBoundingClientRect();
       const spriteRect = spriteHost.getBoundingClientRect();
@@ -1301,14 +1305,14 @@
             { transform: 'translate3d(-80%, 40%, 0) scale(0.95)', opacity: 1, offset: 0.6 },
             { transform: 'translate3d(0, 0, 0) scale(0.5)', opacity: 0 },
           ],
-          { duration: 480, easing: 'ease-in-out' }
+          { duration: ballDuration, easing: 'ease-in-out' }
         );
         const cleanup = () => {
           if (ball.parentNode) ball.parentNode.removeChild(ball);
           resolve();
         };
         if (animation) {
-          waitForAnimation(animation, 480).then(cleanup);
+          waitForAnimation(animation, ballDuration).then(cleanup);
         } else {
           cleanup();
         }
@@ -1317,7 +1321,7 @@
         setTimeout(() => {
           if (ball.parentNode) ball.parentNode.removeChild(ball);
           resolve();
-        }, 450);
+        }, ballDuration);
       }
     });
     state.active = false;
@@ -1337,9 +1341,9 @@
           { transform: 'scale(2.5)', opacity: 1 },
           { transform: 'scale(0.1)', opacity: 0 },
         ],
-        { duration: 260, easing: 'ease-in' }
+        { duration: shrinkDuration, easing: 'ease-in' }
       );
-      await waitForAnimation(shrink, 260);
+      await waitForAnimation(shrink, shrinkDuration);
     } catch (_) { /* ignore animation errors */ }
     spriteImg.style.opacity = '0';
     spriteImg.style.transform = 'scale(0.1)';
@@ -1352,9 +1356,9 @@
           { transform: 'scale(0.1)', opacity: 0 },
           { transform: 'scale(2.5)', opacity: 1 },
         ],
-        { duration: 300, easing: 'ease-out' }
+        { duration: growDuration, easing: 'ease-out' }
       );
-      await waitForAnimation(grow, 300);
+      await waitForAnimation(grow, growDuration);
     } catch (_) { /* ignore animation errors */ }
     spriteImg.style.opacity = '';
     spriteImg.style.transform = '';
