@@ -60,6 +60,18 @@
     .level-input:focus { outline: none; border-color: #007aff; box-shadow: 0 0 0 2px rgba(0,122,255,0.15); }
     .save-feedback { margin-top: 10px; text-align: center; font-size: 13px; font-weight: 600; color: #2ecc71; min-height: 18px; }
     .save-feedback[data-error='1'] { color: #e74c3c; }
+    .btn-danger { background:#e74c3c; border:1px solid #c0392b; color:#fff; }
+    .btn-danger:hover { filter: brightness(0.95); }
+    .btn-danger:disabled { background:#f2b4aa; border-color:#d98880; cursor:not-allowed; }
+    .btn-secondary { background:#fff; border:1px solid #d0d7e2; color:#1f2d3d; }
+    .btn-secondary:hover { background:#f6f8fb; }
+    .btn-secondary:disabled { opacity:0.6; cursor:not-allowed; }
+    .confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:center; justify-content:center; padding:16px; z-index:1000; }
+    .confirm-overlay.is-open { display:flex; }
+    .confirm-dialog { background:#fff; border-radius:16px; padding:24px 20px; box-shadow:0 12px 32px rgba(0,0,0,0.18); max-width:320px; width:100%; text-align:center; }
+    .confirm-message { font-weight:700; color:#1f2d3d; }
+    .confirm-actions { display:flex; gap:12px; margin-top:20px; justify-content:center; }
+    .confirm-actions .btn { flex:1 1 auto; }
     /* Content now flows; parent handles scrolling */
     .content { flex: 1 1 auto; overflow: visible; padding: 12px; background:#f5f5f7; }
     .card { background:#fff; border:1px solid #e6e6e6; border-radius: 14px; padding: 12px; margin-bottom: 12px; }
@@ -178,6 +190,20 @@
         <div class="card">
           <button class="btn btn-primary" id="powerBtn" type="button" style="width:100%">Power Up</button>
         </div>
+
+        <div class="card" style="display:none;">
+          <button class="btn btn-danger" id="releasePokemonBtn" type="button" style="width:100%">Release Pokemon</button>
+        </div>
+      </div>
+
+      <div class="confirm-overlay" id="releaseConfirmOverlay" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="confirm-dialog">
+          <div class="confirm-message">Release this Pokemon from your collection?</div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" id="releaseCancelBtn" type="button">No</button>
+            <button class="btn btn-danger" id="releaseConfirmBtn" type="button">Yes, release</button>
+          </div>
+        </div>
       </div>
 
       <div class="bottom-close">
@@ -192,6 +218,7 @@
   <script src="pokemon-stats.js"></script>
   <script src="pokemon-data.js"></script>
   <script src="shared.js"></script>
+  <script src="collection.js"></script>
     <script>
     (function(){
       const page = document.querySelector('.phone.phone-column');
@@ -322,7 +349,15 @@
       const saveBtn = $('savePokemonBtn');
       const feedbackEl = $('saveFeedback');
       const powerBtn = $('powerBtn');
+      const releaseBtn = $('releasePokemonBtn');
+      const releaseCard = releaseBtn ? releaseBtn.closest('.card') : null;
+      const releaseOverlay = $('releaseConfirmOverlay');
+      const releaseConfirmBtn = $('releaseConfirmBtn');
+      const releaseCancelBtn = $('releaseCancelBtn');
       const typeWrap = $('typeChips');
+      let updateSaveLabel = () => {};
+      let pendingReleaseUid = '';
+      let releaseHandler = null;
       const backBtn = $('closeBtn');
       const fastMoveEl = $('fastMove');
       const fastPowerEl = $('fastPower');
@@ -495,10 +530,79 @@
         }
       });
 
-      if (saveBtn) {
-        function updateSaveLabel() {
-          saveBtn.textContent = activeUid ? 'Update Pokemon' : 'Save Pokemon';
+      function updateReleaseVisibility() {
+        if (!releaseBtn) return;
+        const hasUid = Boolean(activeUid);
+        if (releaseCard) {
+          releaseCard.style.display = hasUid ? '' : 'none';
+        } else {
+          releaseBtn.style.display = hasUid ? '' : 'none';
         }
+        releaseBtn.disabled = !hasUid;
+      }
+
+
+
+      function toggleReleaseOverlay(show) {
+        if (!releaseOverlay) return;
+        releaseOverlay.setAttribute('aria-hidden', show ? 'false' : 'true');
+        if (show) {
+          releaseOverlay.classList.add('is-open');
+          const focusTarget = releaseConfirmBtn || releaseCancelBtn;
+          if (focusTarget) window.requestAnimationFrame(() => focusTarget.focus());
+        } else {
+          releaseOverlay.classList.remove('is-open');
+        }
+      }
+
+      function clearPendingRelease() {
+        pendingReleaseUid = '';
+        releaseHandler = null;
+      }
+
+      function cancelPendingRelease() {
+        const wasPending = Boolean(pendingReleaseUid);
+        const wasOpen = releaseOverlay ? releaseOverlay.classList.contains('is-open') : false;
+        toggleReleaseOverlay(false);
+        clearPendingRelease();
+        if (wasPending || wasOpen) {
+          showFeedback('Release cancelled.', false);
+        }
+      }
+
+      function finalizeRelease(targetUid, handler) {
+        toggleReleaseOverlay(false);
+        clearPendingRelease();
+        if (!targetUid || !handler) {
+          showFeedback('Unable to release this Pokemon.', true);
+          return;
+        }
+        const removed = handler.call(window.PlayerCollection, targetUid);
+        if (!removed) {
+          showFeedback('Unable to release this Pokemon: failed to find.', true);
+          return;
+        }
+        const latest = readState();
+        if (latest && latest.viewPokemon && latest.viewPokemon.uid === targetUid) {
+          const nextView = Object.assign({}, latest.viewPokemon);
+          delete nextView.uid;
+          writeState({ viewPokemon: nextView });
+        }
+        activeUid = '';
+        existingEntry = null;
+        updateSaveLabel();
+        updateReleaseVisibility();
+        showFeedback('Pokemon released.', false);
+        window.setTimeout(() => {
+          window.location.href = 'pokemon-list.html';
+        }, 300);
+      }
+
+
+if (saveBtn) {
+        updateSaveLabel = function () {
+          saveBtn.textContent = activeUid ? 'Update Pokemon' : 'Save Pokemon';
+        };
         updateSaveLabel();
         saveBtn.addEventListener('click', () => {
           if (!id) {
@@ -542,10 +646,69 @@
           existingEntry = nextCollection.find((item) => item.uid === uid) || existingEntry;
           const nextView = Object.assign({}, view || {}, { id, name, level: levelToSave, uid });
           writeState({ playerPokemon: nextCollection, viewPokemon: nextView });
+          updateReleaseVisibility();
           updateSaveLabel();
           showFeedback(existed ? 'Pokemon updated!' : 'Pokemon saved!', false);
         });
       }
+
+      if (releaseBtn) {
+        updateReleaseVisibility();
+        releaseBtn.addEventListener('click', () => {
+          if (!activeUid) {
+            showFeedback('This Pokemon is not saved yet.', true);
+            return;
+          }
+          const handler = window.PlayerCollection && typeof window.PlayerCollection.releasePokemon === 'function'
+            ? window.PlayerCollection.releasePokemon
+            : null;
+          if (!handler) {
+            showFeedback('Unable to release this Pokemon.', true);
+            return;
+          }
+          if (!releaseOverlay || !releaseConfirmBtn || !releaseCancelBtn) {
+            const confirmed = window.confirm('Release this Pokemon from your collection?');
+            if (!confirmed) {
+              showFeedback('Release cancelled.', false);
+              return;
+            }
+            finalizeRelease(activeUid, handler);
+            return;
+          }
+          pendingReleaseUid = activeUid;
+          releaseHandler = handler;
+          toggleReleaseOverlay(true);
+        });
+      }
+
+      if (releaseCancelBtn) {
+        releaseCancelBtn.addEventListener('click', () => {
+          cancelPendingRelease();
+        });
+      }
+
+      if (releaseConfirmBtn) {
+        releaseConfirmBtn.addEventListener('click', () => {
+          const targetUid = pendingReleaseUid;
+          const handler = releaseHandler;
+          finalizeRelease(targetUid, handler);
+        });
+      }
+
+
+      if (releaseOverlay) {
+        releaseOverlay.addEventListener('click', (event) => {
+          if (event.target === releaseOverlay) {
+            cancelPendingRelease();
+          }
+        });
+      }
+
+      document.addEventListener('keydown', (event) => {
+        if ((event.key === 'Escape' || event.key === 'Esc') && releaseOverlay && releaseOverlay.classList.contains('is-open')) {
+          cancelPendingRelease();
+        }
+      });
 
       if (powerBtn) {
         powerBtn.addEventListener('click', () => {

@@ -90,6 +90,24 @@
     return entry;
   }
 
+  function releasePokemon(uid) {
+    if (typeof uid !== 'string' || !uid) return false;
+    var state = readState();
+    var list = Array.isArray(state.playerPokemon) ? state.playerPokemon.slice() : [];
+    var index = list.findIndex(function (item) { return item && item.uid === uid; });
+    if (index === -1) return false;
+    list.splice(index, 1);
+    var patch = { playerPokemon: list };
+    if (state && state.viewPokemon && state.viewPokemon.uid === uid) {
+      var nextView = Object.assign({}, state.viewPokemon);
+      delete nextView.uid;
+      patch.viewPokemon = nextView;
+    }
+    writeState(patch);
+    return true;
+  }
+
   global.PlayerCollection = global.PlayerCollection || {};
   global.PlayerCollection.createPokemon = createPokemon;
+  global.PlayerCollection.releasePokemon = releasePokemon;
 })(window);
