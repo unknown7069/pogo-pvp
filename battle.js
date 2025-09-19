@@ -404,87 +404,113 @@
   let player = playerTeam[activePlayerIndex].pokemon;
   // Build opponent's team from presets; fall back to roster slices if missing
   const pool = ALL_SPECIES.length ? ALL_SPECIES : [{ id: 1, name: 'Pokemon' }];
-  const ROCKET_OPPONENT_PRESETS = [
-    {
+  const DEFAULT_ROCKET_STAGES = Object.freeze([
+    Object.freeze({
       id: 'grunt-male',
-      team: [
-        { id: 19, level: 5 }, // Rattata
-        { id: 41, level: 5 }, // Zubat
-        { id: 66, level: 7 }, // Machop
-      ],
-    },
-    {
+      name: 'Rocket Grunt',
+      quote: "Let's do this!",
+      icon: 'https://archives.bulbagarden.net/media/upload/thumb/8/80/VSTeam_GO_Rocket_Grunt_M.png/120px-VSTeam_GO_Rocket_Grunt_M.png',
+      team: Object.freeze([
+        Object.freeze({ id: 19, speciesId: 19, name: 'Rattata', level: 5 }),
+        Object.freeze({ id: 41, speciesId: 41, name: 'Zubat', level: 5 }),
+        Object.freeze({ id: 66, speciesId: 66, name: 'Machop', level: 7 }),
+      ]),
+    }),
+    Object.freeze({
       id: 'grunt-female',
-      team: [
-        { id: 23, level: 7 }, // Ekans
-        { id: 96, level: 7 }, // Drowzee
-        { id: 109, level: 9 }, // Koffing
-      ],
-    },
-    {
+      name: 'Rocket Grunt',
+      quote: 'Get ready to lose twerp!',
+      icon: 'https://archives.bulbagarden.net/media/upload/thumb/6/62/VSTeam_GO_Rocket_Grunt_F.png/120px-VSTeam_GO_Rocket_Grunt_F.png',
+      team: Object.freeze([
+        Object.freeze({ id: 23, speciesId: 23, name: 'Ekans', level: 7 }),
+        Object.freeze({ id: 96, speciesId: 96, name: 'Drowzee', level: 7 }),
+        Object.freeze({ id: 109, speciesId: 109, name: 'Koffing', level: 9 }),
+      ]),
+    }),
+    Object.freeze({
       id: 'cliff',
-      team: [
-        { id: 142, level: 40 }, // Aerodactyl
-        { id: 95, level: 42 }, // Onix
-        { id: 68, level: 43 }, // Machamp
-      ],
-    },
-    {
+      name: 'Cliff',
+      quote: "Don't waste my time.",
+      icon: 'https://archives.bulbagarden.net/media/upload/thumb/d/d9/VSCliff.png/120px-VSCliff.png',
+      team: Object.freeze([
+        Object.freeze({ id: 142, speciesId: 142, name: 'Aerodactyl', level: 40 }),
+        Object.freeze({ id: 95, speciesId: 95, name: 'Onix', level: 42 }),
+        Object.freeze({ id: 68, speciesId: 68, name: 'Machamp', level: 43 }),
+      ]),
+    }),
+    Object.freeze({
       id: 'arlo',
-      team: [
-        { id: 80, level: 39 }, // Slowbro
-        { id: 123, level: 41 }, // Scyther
-        { id: 45, level: 43 }, // Vileplume
-      ],
-    },
-    {
+      name: 'Arlo',
+      quote: "I'll show you true power.",
+      icon: 'https://archives.bulbagarden.net/media/upload/thumb/5/5c/VSArlo.png/120px-VSArlo.png',
+      team: Object.freeze([
+        Object.freeze({ id: 80, speciesId: 80, name: 'Slowbro', level: 39 }),
+        Object.freeze({ id: 123, speciesId: 123, name: 'Scyther', level: 41 }),
+        Object.freeze({ id: 45, speciesId: 45, name: 'Vileplume', level: 43 }),
+      ]),
+    }),
+    Object.freeze({
       id: 'sierra',
-      team: [
-        { id: 38, level: 38 }, // Ninetales
-        { id: 94, level: 40 }, // Gengar
-        { id: 131, level: 42 }, // Lapras
-      ],
-    },
-    {
+      name: 'Sierra',
+      quote: "You'll regret this.",
+      icon: 'https://archives.bulbagarden.net/media/upload/thumb/8/82/VSSierra.png/120px-VSSierra.png',
+      team: Object.freeze([
+        Object.freeze({ id: 38, speciesId: 38, name: 'Ninetales', level: 38 }),
+        Object.freeze({ id: 94, speciesId: 94, name: 'Gengar', level: 40 }),
+        Object.freeze({ id: 131, speciesId: 131, name: 'Lapras', level: 42 }),
+      ]),
+    }),
+    Object.freeze({
       id: 'giovanni',
-      team: [
-        { id: 53, level: 45 }, // Persian
-        { id: 34, level: 47 }, // Nidoking
-        { id: 111, level: 50 }, // Rhyhorn
-      ],
-    },
-    {
-      id: 'giovanni',
-      team: [
-        { id: 53, level: 45 }, // Persian
-        { id: 34, level: 47 }, // Nidoking
-        { id: 111, level: 50 }, // Rhyhorn
-      ],
-    },
-    {
-      id: 'giovanni',
-      team: [
-        { id: 53, level: 45 }, // Persian
-        { id: 34, level: 47 }, // Nidoking
-        { id: 111, level: 50 }, // Rhyhorn
-      ],
-    },
-  ];
+      name: 'Giovanni',
+      quote: 'So, you think you can challenge me?',
+      icon: 'https://archives.bulbagarden.net/media/upload/f/f3/VSGiovanni_GO.png',
+      team: Object.freeze([
+        Object.freeze({ id: 53, speciesId: 53, name: 'Persian', level: 45 }),
+        Object.freeze({ id: 34, speciesId: 34, name: 'Nidoking', level: 47 }),
+        Object.freeze({ id: 111, speciesId: 111, name: 'Rhyhorn', level: 50 }),
+      ]),
+    }),
+  ]);
+  const rocketStages = (Array.isArray(window.RocketTeams) && window.RocketTeams.length)
+    ? window.RocketTeams
+    : DEFAULT_ROCKET_STAGES;
 
-  function resolveOpponentPreset(index, stageId) {
-    let candidate = (typeof index === 'number' && index >= 0) ? ROCKET_OPPONENT_PRESETS[index] : null;
-    if ((!candidate || !Array.isArray(candidate.team) || !candidate.team.length) && stageId) {
-      candidate = ROCKET_OPPONENT_PRESETS.find((entry) => entry && entry.id === stageId && Array.isArray(entry.team) && entry.team.length) || null;
+  function resolveRocketStage(index, stageId) {
+    const numericIndex = Number(index);
+    let stage = Number.isFinite(numericIndex) && numericIndex >= 0 ? rocketStages[numericIndex] : null;
+    if ((!stage || !Array.isArray(stage.team) || !stage.team.length) && typeof window.getRocketStageByIndex === 'function' && Number.isFinite(numericIndex)) {
+      try {
+        const candidate = window.getRocketStageByIndex(numericIndex);
+        if (candidate && Array.isArray(candidate.team) && candidate.team.length) stage = candidate;
+      } catch (_) {}
     }
-    return candidate && Array.isArray(candidate.team) ? candidate.team : null;
+    if ((!stage || !Array.isArray(stage.team) || !stage.team.length) && typeof window.getRocketStageById === 'function' && stageId) {
+      try {
+        const candidate = window.getRocketStageById(stageId);
+        if (candidate && Array.isArray(candidate.team) && candidate.team.length) stage = candidate;
+      } catch (_) {}
+    }
+    if ((!stage || !Array.isArray(stage.team) || !stage.team.length) && stageId) {
+      stage = rocketStages.find(function (entry) { return entry && entry.id === stageId; }) || null;
+    }
+    if ((!stage || !Array.isArray(stage.team) || !stage.team.length) && stageId) {
+      stage = DEFAULT_ROCKET_STAGES.find(function (entry) { return entry && entry.id === stageId; }) || stage;
+    }
+    if ((!stage || !Array.isArray(stage.team) || !stage.team.length) && Number.isFinite(numericIndex) && numericIndex >= 0) {
+      stage = DEFAULT_ROCKET_STAGES[numericIndex] || stage;
+    }
+    return stage && Array.isArray(stage.team) && stage.team.length ? stage : null;
   }
 
-  const presetTeam = resolveOpponentPreset(opponentIdx, selectedStageId);
+  const presetStage = resolveRocketStage(opponentIdx, selectedStageId);
+  const presetTeam = presetStage ? presetStage.team : null;
   let opponentTeam = Array.isArray(presetTeam)
     ? presetTeam.map((member) => {
         if (!member) return null;
-        const id = Number(member.id);
-        if (!Number.isFinite(id)) return null;
+        const idCandidate = member && member.speciesId != null ? member.speciesId : member && member.id;
+        const id = Number(idCandidate);
+        if (!Number.isFinite(id) || id <= 0) return null;
         const level = member.level != null ? member.level : undefined;
         const overrides = (member.overrides && typeof member.overrides === 'object') ? member.overrides : undefined;
         const pokemon = makePokemonFromId(id, level, overrides);
@@ -1197,10 +1223,15 @@
   function concludeBattle(outcome) {
     // Stop all loops and record result, then navigate to summary
     endBattle(outcome);
+    const firstOpponentEntry = opponentTeam && opponentTeam.length ? opponentTeam[0] : null;
+    const firstOpponentPokemon = firstOpponentEntry && firstOpponentEntry.pokemon ? firstOpponentEntry.pokemon : null;
+    const firstOpponentLevel = firstOpponentPokemon ? sanitizeLevelValue(firstOpponentPokemon.level, 20) : 20;
     const result = {
       outcome, // 'win' | 'lose' | 'forfeit' | 'tie'
       opponent: (selectedBattle && selectedBattle.label) || 'Opponent',
+      stageId: selectedStageId || null,
       stageIndex: Number((selectedBattle && selectedBattle.index) || 0),
+      firstOpponentLevel,
       teamIds: Array.isArray(teamIds) ? teamIds.slice() : [],
       teamNames: Array.isArray(playerTeam) ? playerTeam.map(m => m.name) : [],
       timestamp: Date.now(),
@@ -1576,6 +1607,7 @@
   // We have valid state if we reached here; start countdown
   startCountdown();
 })();
+
 
 
 

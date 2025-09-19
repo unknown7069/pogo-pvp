@@ -29,6 +29,7 @@
   <script src="pokemon-stats.js"></script>
   <script src="pokemon-data.js"></script>
   <script src="collection.js"></script>
+  <script src="rocket-teams.js"></script>
   <script src="shared.js"></script>
   <script src="saving.js"></script>
 </head>
@@ -86,6 +87,82 @@
       const PD = window.PokemonData || {};
       const Collection = window.PlayerCollection || {};
       const MAX_REWARD_COUNT = 3;
+
+      const DEFAULT_ROCKET_STAGES = [
+        { id: 'grunt-male', team: [ { level: 5 }, { level: 5 }, { level: 7 } ] },
+        { id: 'grunt-female', team: [ { level: 7 }, { level: 7 }, { level: 9 } ] },
+        { id: 'cliff', team: [ { level: 40 }, { level: 42 }, { level: 43 } ] },
+        { id: 'arlo', team: [ { level: 39 }, { level: 41 }, { level: 43 } ] },
+        { id: 'sierra', team: [ { level: 38 }, { level: 40 }, { level: 42 } ] },
+        { id: 'giovanni', team: [ { level: 45 }, { level: 47 }, { level: 50 } ] },
+      ];
+
+      function clampRewardLevel(value) {
+        let n = Number(value);
+        if (!Number.isFinite(n)) return 20;
+        if (n < 1) n = 1;
+        if (n > 50) n = 50;
+        return Math.round(n * 2) / 2;
+      }
+
+      function findRocketStage() {
+        if (!r) return null;
+        const stages = Array.isArray(window.RocketTeams) ? window.RocketTeams : [];
+        const fallbackStages = DEFAULT_ROCKET_STAGES;
+        const numericIndex = Number(r && r.stageIndex);
+        const stageId = r && r.stageId;
+
+        function hasTeam(candidate) {
+          return candidate && Array.isArray(candidate.team) && candidate.team.length;
+        }
+
+        let stage = Number.isFinite(numericIndex) && numericIndex >= 0 && numericIndex < stages.length
+          ? stages[numericIndex]
+          : null;
+
+        if (!hasTeam(stage) && typeof window.getRocketStageByIndex === 'function' && Number.isFinite(numericIndex)) {
+          try {
+            const candidate = window.getRocketStageByIndex(numericIndex);
+            if (hasTeam(candidate)) stage = candidate;
+          } catch (_) {}
+        }
+
+        if (!hasTeam(stage) && stageId && typeof window.getRocketStageById === 'function') {
+          try {
+            const candidate = window.getRocketStageById(stageId);
+            if (hasTeam(candidate)) stage = candidate;
+          } catch (_) {}
+        }
+
+        if (!hasTeam(stage) && stageId && stages.length) {
+          stage = stages.find(function (entry) { return entry && entry.id === stageId; }) || stage;
+        }
+
+        if (!hasTeam(stage) && stageId) {
+          stage = fallbackStages.find(function (entry) { return entry && entry.id === stageId; }) || stage;
+        }
+
+        if (!hasTeam(stage) && Number.isFinite(numericIndex) && numericIndex >= 0) {
+          stage = fallbackStages[numericIndex] || stage;
+        }
+
+        return hasTeam(stage) ? stage : null;
+      }
+
+      function resolveRewardLevel() {
+        const stage = findRocketStage();
+        if (stage && Array.isArray(stage.team) && stage.team.length) {
+          const member = stage.team[0];
+          if (member && member.level != null) {
+            return clampRewardLevel(member.level);
+          }
+        }
+        if (r && r.firstOpponentLevel != null) {
+          return clampRewardLevel(r.firstOpponentLevel);
+        }
+        return 20;
+      }
+      const rewardLevel = resolveRewardLevel();
       function getEligibleSpeciesPool() {
         if (!PD || !Array.isArray(PD.all)) return [];
         return PD.all.filter(function (species) {
@@ -136,7 +213,7 @@
               created = createPokemon({
                 id: Number(species.id),
                 name: species.name,
-                level: 20
+                level: rewardLevel
               });
             } catch (_) {}
           }
@@ -145,7 +222,8 @@
             results.push({
               id: Number(species.id),
               name: species.name || null,
-              uid: created.uid
+              uid: created.uid,
+              level: rewardLevel
             });
             continue;
           }
@@ -153,14 +231,15 @@
           const fallbackEntry = appendToCollection({
             uid: fallbackUid,
             id: Number(species.id),
-            level: 20,
+            level: rewardLevel,
             name: species.name || null,
             createdAt: Date.now()
           });
           results.push({
             id: Number(species.id),
             name: species.name || null,
-            uid: fallbackEntry && fallbackEntry.uid ? fallbackEntry.uid : fallbackUid
+            uid: fallbackEntry && fallbackEntry.uid ? fallbackEntry.uid : fallbackUid,
+            level: rewardLevel
           });
         }
         return results;
