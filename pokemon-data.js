@@ -13,6 +13,13 @@
   const all = canonical;
   const byId = new Map(all.map(p => [p.id, p]));
 
+  // Species sorted by max cp desc
+  all.sort((a, b) => {
+    const aMaxCp = Stats.calcGoCp && a.baseStats ? Stats.calcGoCp(a.baseStats) : 0;
+    const bMaxCp = Stats.calcGoCp && b.baseStats ? Stats.calcGoCp(b.baseStats) : 0;
+    return bMaxCp - aMaxCp;
+  });
+
   function clampIv(value) {
     var n = Number(value);
     if (!Number.isFinite(n)) return null;

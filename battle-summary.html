@@ -7,13 +7,28 @@
   <link rel="stylesheet" href="styles.css" />
   <style>
     .summary-page { display:flex; flex-direction:column; height:100%; }
-    .summary-header { padding: 16px; text-align:center; font-weight:800; border-bottom:1px solid #e5e5e5; background:#fff; }
+    .summary-header { padding:16px; text-align:center; font-weight:800; border-bottom:1px solid #e5e5e5; background:#fff; }
     .summary-body { flex:1 1 auto; display:flex; align-items:center; justify-content:center; background:#fafafa; }
-    .summary-card { width: min(92%, 420px); background:#fff; border:1px solid #e5e5e5; border-radius:12px; padding:20px; text-align:center; }
+    .summary-card { width:min(92%, 420px); background:#fff; border:1px solid #e5e5e5; border-radius:12px; padding:20px; text-align:center; }
     .summary-title { font-size:20px; font-weight:900; margin-bottom:8px; }
     .summary-sub { color:#555; font-weight:600; margin-bottom:16px; }
-    .summary-actions { padding: 12px; border-top:1px solid #eee; background:#fff; }
+    .summary-actions { padding:12px; border-top:1px solid #eee; background:#fff; }
+    .hidden { display:none !important; }
+    .reward-section { margin-top:20px; border-top:1px solid #eee; padding-top:16px; text-align:center; }
+    .reward-title { font-size:16px; font-weight:800; margin-bottom:12px; color:#222; }
+    .reward-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; }
+    .reward-item { display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px; width:92px; border:1px solid #e5e5e5; border-radius:12px; background:#fdfdfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
+    .reward-item img { width:64px; height:64px; object-fit:contain; image-rendering:pixelated; }
+    .reward-name { font-size:12px; font-weight:700; color:#333; text-transform:capitalize; }
+    .reward-note { margin-top:10px; font-size:12px; color:#666; }
   </style>
+  <script src="pokemon-types.js"></script>
+  <script src="pokemon-moves-fast.js"></script>
+  <script src="pokemon-moves-charged.js"></script>
+  <script src="pokemon-species.js"></script>
+  <script src="pokemon-stats.js"></script>
+  <script src="pokemon-data.js"></script>
+  <script src="collection.js"></script>
   <script src="shared.js"></script>
   <script src="saving.js"></script>
 </head>
@@ -25,32 +40,175 @@
         <div class="summary-card" id="summaryCard">
           <div class="summary-title" id="summaryTitle">Battle Result</div>
           <div class="summary-sub" id="summaryDetail"></div>
+          <div class="reward-section hidden" id="rewardSection">
+            <div class="reward-title" id="rewardTitle">New Pokemon Unlocked!</div>
+            <div class="reward-grid" id="rewardGrid"></div>
+            <div class="reward-note" id="rewardNote">Added to your collection!</div>
+          </div>
           <button class="btn btn-primary" id="backBtn" type="button">Return to Rocket Select</button>
         </div>
       </div>
-      
     </main>
   </div>
   <script>
     (function(){
       function setText(el, text){ if (el) el.textContent = text; }
-      // Read only from stored result; rely on centralized helpers with a safe fallback.
       const readState = (typeof window.readState === 'function')
         ? window.readState
         : function () {
-          try {
-            const raw = localStorage.getItem('pogo-pvp-state');
-            return raw ? JSON.parse(raw) : {};
-          } catch (_) {
-            return {};
-          }
-        };
-      const r = readState().lastBattleResult || null;
+            try {
+              const raw = window.localStorage ? window.localStorage.getItem('pogo-pvp-state') : null;
+              return raw ? JSON.parse(raw) : {};
+            } catch (_) {
+              return {};
+            }
+          };
+      const writeState = (typeof window.writeState === 'function')
+        ? window.writeState
+        : function (patch) {
+            if (!patch || Object(patch) !== patch) return;
+            try {
+              const current = readState();
+              const next = Object.assign({}, current, patch);
+              if (window.localStorage) {
+                window.localStorage.setItem('pogo-pvp-state', JSON.stringify(next));
+              }
+            } catch (_) {}
+          };
+      let r = readState().lastBattleResult || null;
       const titleEl = document.getElementById('summaryTitle');
       const detailEl = document.getElementById('summaryDetail');
       const backBtn = document.getElementById('backBtn');
-      
-
+      const rewardSection = document.getElementById('rewardSection');
+      const rewardGrid = document.getElementById('rewardGrid');
+      const rewardTitle = document.getElementById('rewardTitle');
+      const rewardNote = document.getElementById('rewardNote');
+      const PD = window.PokemonData || {};
+      const Collection = window.PlayerCollection || {};
+      const MAX_REWARD_COUNT = 3;
+      function getEligibleSpeciesPool() {
+        if (!PD || !Array.isArray(PD.all)) return [];
+        return PD.all.filter(function (species) {
+          return species && Number.isFinite(species.id);
+        });
+      }
+      function pickRandomSpecies(count) {
+        if (!Number.isFinite(count) || count <= 0) return [];
+        const pool = getEligibleSpeciesPool();
+        if (!pool.length) return [];
+        const max = Math.min(pool.length, Math.floor(count));
+        const used = new Set();
+        const picks = [];
+        while (picks.length < max && used.size < pool.length) {
+          const idx = Math.floor(Math.random() * pool.length);
+          const candidate = pool[idx];
+          if (!candidate || used.has(candidate.id)) continue;
+          used.add(candidate.id);
+          picks.push(candidate);
+        }
+        return picks;
+      }
+      function awardPokemon(speciesList) {
+        const createPokemon = Collection && typeof Collection.createPokemon === 'function'
+          ? Collection.createPokemon
+          : null;
+        if (!Array.isArray(speciesList) || !speciesList.length) return [];
+        const results = [];
+        function appendToCollection(entry) {
+          if (!entry || !Number.isFinite(entry.id)) return null;
+          const state = readState();
+          const list = Array.isArray(state.playerPokemon) ? state.playerPokemon.slice() : [];
+          if (entry.uid && list.some(function (item) { return item && item.uid === entry.uid; })) {
+            return entry;
+          }
+          list.push(entry);
+          try {
+            writeState({ playerPokemon: list });
+          } catch (_) {}
+          return entry;
+        }
+        for (let i = 0; i < speciesList.length; i++) {
+          const species = speciesList[i];
+          if (!species || !Number.isFinite(species.id)) continue;
+          let created = null;
+          if (createPokemon) {
+            try {
+              created = createPokemon({
+                id: Number(species.id),
+                name: species.name,
+                level: 20
+              });
+            } catch (_) {}
+          }
+          if (created && created.uid) {
+            appendToCollection(created);
+            results.push({
+              id: Number(species.id),
+              name: species.name || null,
+              uid: created.uid
+            });
+            continue;
+          }
+          const fallbackUid = 'pk_reward_' + Date.now().toString(36) + '_' + i + '_' + Math.random().toString(36).slice(2, 6);
+          const fallbackEntry = appendToCollection({
+            uid: fallbackUid,
+            id: Number(species.id),
+            level: 20,
+            name: species.name || null,
+            createdAt: Date.now()
+          });
+          results.push({
+            id: Number(species.id),
+            name: species.name || null,
+            uid: fallbackEntry && fallbackEntry.uid ? fallbackEntry.uid : fallbackUid
+          });
+        }
+        return results;
+      }
+      function renderRewards(list, options) {
+        if (!Array.isArray(list) || !list.length || !rewardGrid) return;
+        if (rewardSection && rewardSection.classList) {
+          rewardSection.classList.remove('hidden');
+        } else if (rewardSection) {
+          rewardSection.style.display = 'block';
+        }
+        rewardGrid.textContent = '';
+        const alreadyClaimed = options && options.alreadyClaimed;
+        if (rewardTitle) {
+          setText(rewardTitle, alreadyClaimed ? 'Unlocked Pokemon' : 'New Pokemon Unlocked!');
+        }
+        if (rewardNote) {
+          setText(rewardNote, alreadyClaimed ? 'Already added to your collection.' : 'Added to your collection!');
+        }
+        for (let i = 0; i < list.length; i++) {
+          const info = list[i];
+          if (!info || !Number.isFinite(info.id)) continue;
+          const wrapper = document.createElement('div');
+          wrapper.className = 'reward-item';
+          const mon = PD && typeof PD.getPokemonById === 'function' ? PD.getPokemonById(info.id) : null;
+          const displayName = info.name || (mon && mon.name) || ('#' + info.id);
+          let spriteUrl = '';
+          if (PD && typeof PD.getForwardSpriteUrl === 'function') {
+            try {
+              spriteUrl = PD.getForwardSpriteUrl(mon || displayName);
+            } catch (_) {}
+          }
+          if (!spriteUrl && mon && mon.sprite) {
+            spriteUrl = mon.sprite;
+          }
+          if (spriteUrl) {
+            const img = document.createElement('img');
+            img.alt = displayName;
+            img.src = spriteUrl;
+            wrapper.appendChild(img);
+          }
+          const label = document.createElement('div');
+          label.className = 'reward-name';
+          label.textContent = displayName;
+          wrapper.appendChild(label);
+          rewardGrid.appendChild(wrapper);
+        }
+      }
       let title = 'Battle Result';
       let detail = '';
       if (r && r.outcome) {
@@ -59,19 +217,35 @@
         else if (r.outcome === 'forfeit') title = 'You Forfeited';
         else if (r.outcome === 'tie') title = 'It\'s a Tie!';
         const vs = r.opponent ? `Opponent: ${r.opponent}` : '';
-        detail = vs
+        detail = vs;
       } else {
         detail = 'No recent battle information.';
       }
       setText(titleEl, title);
       setText(detailEl, detail);
-
+      if (r && r.outcome === 'win') {
+        const existing = Array.isArray(r.rewardPokemon)
+          ? r.rewardPokemon.filter(function (item) { return item && Number.isFinite(item.id); })
+          : [];
+        if (r.rewardClaimed && existing.length) {
+          renderRewards(existing, { alreadyClaimed: true });
+        } else {
+          const picks = pickRandomSpecies(MAX_REWARD_COUNT);
+          const awarded = awardPokemon(picks);
+          if (awarded.length) {
+            renderRewards(awarded, { alreadyClaimed: false });
+            const nextResult = Object.assign({}, r || {}, {
+              rewardClaimed: true,
+              rewardPokemon: awarded
+            });
+            writeState({ lastBattleResult: nextResult });
+            r = nextResult;
+          }
+        }
+      }
       function goBack(){ window.location.href = 'rocket-select.html'; }
       if (backBtn) backBtn.addEventListener('click', goBack);
-      
     })();
   </script>
 </body>
 </html>
-
-
