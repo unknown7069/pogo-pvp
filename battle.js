@@ -290,6 +290,7 @@
   const selectedBattle = (__state.selectedBattle && typeof __state.selectedBattle.index === 'number' && __state.selectedBattle.label)
     ? __state.selectedBattle
     : null;
+  const selectedStageId = typeof __state.selectedStageId === 'string' ? __state.selectedStageId : null;
   const hasModernSelection = (selectedTeamMembers && selectedTeamMembers.length) || (selectedTeamUids && selectedTeamUids.length);
   const hasLegacyIds = selectedTeamIds && selectedTeamIds.length;
   const hasLegacyNames = selectedTeamNamesLegacy && selectedTeamNamesLegacy.length;
@@ -401,19 +402,107 @@
 
   let activePlayerIndex = 0;
   let player = playerTeam[activePlayerIndex].pokemon;
-  // Build opponent's team from species list, rotating by stage index
-  const pool = ALL_SPECIES.length ? ALL_SPECIES : [{id:1,name:'Pokemon'}];
-  const opponentTeams = [
-    [3, 6, 9],
-    [],
-    [],
-    [],
-    [],
-    [],
-  ]
-  const oppIds = opponentTeams[opponentIdx];
-  const opponentTeam = oppIds.map((id) => ({ id, pokemon: makePokemonFromId(id), fainted: false }));
+  // Build opponent's team from presets; fall back to roster slices if missing
+  const pool = ALL_SPECIES.length ? ALL_SPECIES : [{ id: 1, name: 'Pokemon' }];
+  const ROCKET_OPPONENT_PRESETS = [
+    {
+      id: 'grunt-male',
+      team: [
+        { id: 19, level: 5 }, // Rattata
+        { id: 41, level: 5 }, // Zubat
+        { id: 66, level: 7 }, // Machop
+      ],
+    },
+    {
+      id: 'grunt-female',
+      team: [
+        { id: 23, level: 7 }, // Ekans
+        { id: 96, level: 7 }, // Drowzee
+        { id: 109, level: 9 }, // Koffing
+      ],
+    },
+    {
+      id: 'cliff',
+      team: [
+        { id: 142, level: 40 }, // Aerodactyl
+        { id: 95, level: 42 }, // Onix
+        { id: 68, level: 43 }, // Machamp
+      ],
+    },
+    {
+      id: 'arlo',
+      team: [
+        { id: 80, level: 39 }, // Slowbro
+        { id: 123, level: 41 }, // Scyther
+        { id: 45, level: 43 }, // Vileplume
+      ],
+    },
+    {
+      id: 'sierra',
+      team: [
+        { id: 38, level: 38 }, // Ninetales
+        { id: 94, level: 40 }, // Gengar
+        { id: 131, level: 42 }, // Lapras
+      ],
+    },
+    {
+      id: 'giovanni',
+      team: [
+        { id: 53, level: 45 }, // Persian
+        { id: 34, level: 47 }, // Nidoking
+        { id: 111, level: 50 }, // Rhyhorn
+      ],
+    },
+    {
+      id: 'giovanni',
+      team: [
+        { id: 53, level: 45 }, // Persian
+        { id: 34, level: 47 }, // Nidoking
+        { id: 111, level: 50 }, // Rhyhorn
+      ],
+    },
+    {
+      id: 'giovanni',
+      team: [
+        { id: 53, level: 45 }, // Persian
+        { id: 34, level: 47 }, // Nidoking
+        { id: 111, level: 50 }, // Rhyhorn
+      ],
+    },
+  ];
 
+  function resolveOpponentPreset(index, stageId) {
+    let candidate = (typeof index === 'number' && index >= 0) ? ROCKET_OPPONENT_PRESETS[index] : null;
+    if ((!candidate || !Array.isArray(candidate.team) || !candidate.team.length) && stageId) {
+      candidate = ROCKET_OPPONENT_PRESETS.find((entry) => entry && entry.id === stageId && Array.isArray(entry.team) && entry.team.length) || null;
+    }
+    return candidate && Array.isArray(candidate.team) ? candidate.team : null;
+  }
+
+  const presetTeam = resolveOpponentPreset(opponentIdx, selectedStageId);
+  let opponentTeam = Array.isArray(presetTeam)
+    ? presetTeam.map((member) => {
+        if (!member) return null;
+        const id = Number(member.id);
+        if (!Number.isFinite(id)) return null;
+        const level = member.level != null ? member.level : undefined;
+        const overrides = (member.overrides && typeof member.overrides === 'object') ? member.overrides : undefined;
+        const pokemon = makePokemonFromId(id, level, overrides);
+        return pokemon ? { id, pokemon, fainted: false } : null;
+      }).filter(Boolean)
+    : [];
+
+  if (!opponentTeam.length) {
+    const fallbackPool = pool.length ? pool : [{ id: 1, name: 'Pokemon' }];
+    const count = Math.min(3, fallbackPool.length || 1);
+    opponentTeam = new Array(count).fill(null).map((_, idx) => {
+      const species = fallbackPool[(opponentIdx * 3 + idx) % fallbackPool.length];
+      const speciesId = species && Number.isFinite(Number(species.id)) ? Number(species.id) : 1;
+      const level = 20 + (opponentIdx * 2) + (idx * 2);
+      const pokemon = makePokemonFromId(speciesId, level);
+      return { id: speciesId, pokemon, fainted: false };
+    });
+  }
   let activeOpponentIndex = 0;
   let opponent = opponentTeam[activeOpponentIndex].pokemon;
 
