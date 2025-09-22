@@ -244,10 +244,6 @@
 
   const closeBtn = document.getElementById('closeBtn');
   if (closeBtn) closeBtn.addEventListener('click', () => {
-    if (document.referrer) {
-      history.back();
-    } else {
-      window.location.href = 'rocket-select.html';
-    }
+    window.location.href = 'rocket-select.html';
   });
 })();
