@@ -29,6 +29,7 @@
   const opponentSpeedBuffText = $('opponent-speed-buff');
 
   const moveButtons = Array.from(document.querySelectorAll('.move-btn'));
+  const manualSwitchColumn = $('manualSwitches');
 
   // Forfeit/back button: overlay confirm dialog
   const forfeitBtn = $('forfeitBtn');
@@ -633,6 +634,7 @@
     controlsDisabled: true,
     timers: { global: null, switchCountdown: null, switchAuto: null },
     tick: 0,
+    cooldowns: { playerSwitchReady: 0, opponentSwitchReady: 0 },
     schedule: {
       player: { fastTicks: 2, lockUntilTick: 0, pendingChargedIndex: null },
       opponent: { fastTicks: 2, lockUntilTick: 0, pendingChargedIndex: null },
@@ -951,11 +953,59 @@
     });
   }
 
+  function getSwitchCooldownMs(side) {
+    if (!state.cooldowns) return 0;
+    const readyAt = side === 'player' ? Number(state.cooldowns.playerSwitchReady || 0) : Number(state.cooldowns.opponentSwitchReady || 0);
+    const remaining = readyAt - Date.now();
+    return remaining > 0 ? remaining : 0;
+  }
+
+  function applySwitchCooldown(side) {
+    const readyAt = Date.now() + SWITCH_COOLDOWN_MS;
+    if (!state.cooldowns) state.cooldowns = { playerSwitchReady: 0, opponentSwitchReady: 0 };
+    if (side === 'player') state.cooldowns.playerSwitchReady = readyAt;
+    else state.cooldowns.opponentSwitchReady = readyAt;
+  }
+
+  function requestManualSwitch(nextIndex) {
+    if (state.controlsDisabled) return;
+    if (!state.active) return;
+    if (getSwitchCooldownMs('player') > 0) return;
+    performSwitch(nextIndex);
+  }
+
+  function renderManualSwitchButtons() {
+    if (!manualSwitchColumn) return;
+    const options = availableSwitches();
+    manualSwitchColumn.textContent = '';
+    if (!options.length) {
+      manualSwitchColumn.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    manualSwitchColumn.removeAttribute('aria-hidden');
+    const cooldownMs = getSwitchCooldownMs('player');
+    const cooldownSeconds = cooldownMs > 0 ? Math.ceil(cooldownMs / 1000) : 0;
+    const disableButtons = state.controlsDisabled || !state.active || cooldownMs > 0;
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'manual-switch-btn';
+      btn.dataset.switchIndex = String(opt.index);
+      btn.textContent = cooldownSeconds > 0 ? `${opt.name} (${cooldownSeconds}s)` : opt.name;
+      btn.disabled = disableButtons;
+      btn.title = cooldownSeconds > 0 ? `Switch available in ${cooldownSeconds}s` : `Switch to ${opt.name}`;
+      btn.addEventListener('click', () => {
+        requestManualSwitch(opt.index);
+      });
+      manualSwitchColumn.appendChild(btn);
+    });
+  }
   function setControlsDisabled(disabled) {
     state.controlsDisabled = disabled;
     // Forfeit reflects global lock
     if (forfeitBtn) forfeitBtn.disabled = disabled;
     refreshMoveButtons();
+    renderManualSwitchButtons();
   }
 
   // ---------------------------
@@ -963,6 +1013,7 @@
   // ---------------------------
   const ENERGY_CAP = 100;
   const TICK_MS = 500;
+  const SWITCH_COOLDOWN_MS = 5000;
 
   function grantEnergy(p, amount) {
     // Keep energy as an integer: clamp to [0, ENERGY_CAP] then floor
@@ -1176,7 +1227,7 @@
       updateBuffsUI();
     }
 
-    // TODO - Handle manual switches 
+    renderManualSwitchButtons();
 
     // Outcome checks
     const playerFainted = player.hp <= 0;
@@ -1275,6 +1326,7 @@
   updateHpUI();
   updateHeaderUI();
   updateEnergyUI();
+  renderManualSwitchButtons();
 
   // 3-second countdown preventing interaction, then start battle
   function startCountdown() {
@@ -1395,6 +1447,8 @@
       updateEnergyUI();
       refreshMoveButtons();
       persistBattleState();
+      applySwitchCooldown('player');
+      renderManualSwitchButtons();
     };
     const throwBall = () => new Promise(resolve => {
       const ballUrl = ballSpriteUrls[0];
@@ -1522,6 +1576,7 @@
   function handlePlayerFaint() {
     // Mark current as fainted
     if (playerTeam[activePlayerIndex]) playerTeam[activePlayerIndex].fainted = true;
+    renderManualSwitchButtons();
     // Pause battle and lock controls
     state.active = false;
     setControlsDisabled(true);
@@ -1558,6 +1613,7 @@
   function performOpponentSwitch(nextIndex) {
     activeOpponentIndex = nextIndex;
     opponent = opponentTeam[activeOpponentIndex].pokemon;
+    applySwitchCooldown('opponent');
     // Reset per-switch state
     // Reset recent damage overlay baseline for opponent
     prevOpponentHpPct = Math.max(0, Math.round((opponent.hp / opponent.maxHP) * 100));
@@ -1607,10 +1663,3 @@
   // We have valid state if we reached here; start countdown
   startCountdown();
 })();
-
-
-
-
-
-
-

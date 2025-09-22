@@ -22,6 +22,57 @@
       overflow: hidden;
     }
 
+    .manual-switch-column {
+      position: absolute;
+      right: 12px;
+      top: 90%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 6;
+      pointer-events: none;
+    }
+    .manual-switch-btn {
+      pointer-events: auto;
+      min-width: 120px;
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.65);
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.3px;
+      text-align: left;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+      transition: transform 120ms ease, background 120ms ease;
+    }
+    .manual-switch-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      background: rgba(0,0,0,0.7);
+    }
+    .manual-switch-btn:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+    .manual-switch-btn:disabled {
+      background: rgba(0,0,0,0.35);
+      border-color: rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.45);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    @media (max-width: 480px) {
+      .manual-switch-column {
+        right: 6px;
+      }
+      .manual-switch-btn {
+        min-width: 96px;
+        font-size: 11px;
+        padding: 8px 10px;
+      }
+    }
+
     /* Top status bar: opponent (left) and player (right) */
     .battle-forfeit { display:flex; align-items:center; padding: 6px 8px; background: transparent; border-bottom:none; }
     .forfeit-btn { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.22); color:#fff; font-weight:700; cursor:pointer; }
@@ -224,6 +275,7 @@
 
       <!-- Stage area -->
       <section class="battle-stage" role="img" aria-label="Battle stage">
+        <div class="manual-switch-column" id="manualSwitches" aria-label="Available switches"></div>
         <div class="sprite opponent" aria-label="Opponent Pokemon">
           <img id="opponent-sprite-img" alt="Opponent Pokémon" />
         </div>
@@ -301,3 +353,5 @@
   <script src="battle.js"></script>
 </body>
 </html>
+
+
