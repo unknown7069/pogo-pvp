@@ -164,21 +164,88 @@
       }
       const rewardLevel = resolveRewardLevel();
       function getEligibleSpeciesPool() {
-        if (!PD || !Array.isArray(PD.all)) return [];
-        return PD.all.filter(function (species) {
-          return species && Number.isFinite(species.id);
+        const list = PD && Array.isArray(PD.all) ? PD.all : [];
+        if (!list.length) return [];
+        function computeMaxCp(species) {
+          if (!species) return null;
+          if (Number.isFinite(species.maxCp)) return Number(species.maxCp);
+          if (species.baseStats && typeof PD.calcGoCp === 'function') {
+            try { return Number(PD.calcGoCp(species.baseStats)); } catch (_) { return null; }
+          }
+          return null;
+        }
+        const mapped = list.map(function (species, index) {
+          return { species: species, cp: computeMaxCp(species), index: index };
+        }).filter(function (entry) {
+          return entry.species && Number.isFinite(entry.species.id);
         });
+        mapped.sort(function (a, b) {
+          const cpA = Number.isFinite(a.cp) ? a.cp : Infinity;
+          const cpB = Number.isFinite(b.cp) ? b.cp : Infinity;
+          if (cpA !== cpB) return cpA - cpB;
+          return a.index - b.index;
+        });
+        if (typeof console !== 'undefined') {
+          const debugRows = mapped.map(function (entry) {
+            return { name: entry.species.name || entry.species.speciesName || ('#' + entry.species.id), maxCp: entry.cp };
+          });
+          if (console.table) console.table(debugRows, ['name', 'maxCp']); else console.log('[Battle Summary] Eligible species pool', debugRows);
+        }
+        return mapped.map(function (entry) { return entry.species; });
       }
       function pickRandomSpecies(count) {
         if (!Number.isFinite(count) || count <= 0) return [];
         const pool = getEligibleSpeciesPool();
         if (!pool.length) return [];
-        const max = Math.min(pool.length, Math.floor(count));
+        const stage = findRocketStage();
+        const stages = Array.isArray(window.RocketTeams) && window.RocketTeams.length
+          ? window.RocketTeams
+          : DEFAULT_ROCKET_STAGES;
+        const stageCount = stages.length || 1;
+        const numericIndex = Number(r && r.stageIndex);
+        function computeDifficulty(entry) {
+          if (!entry || !Array.isArray(entry.team) || !entry.team.length) return 0;
+          let maxLevel = 0;
+          for (let i = 0; i < entry.team.length; i++) {
+            const member = entry.team[i];
+            const lvl = Number(member && member.level);
+            if (Number.isFinite(lvl) && lvl > maxLevel) maxLevel = lvl;
+          }
+          return maxLevel;
+        }
+        const rankedStages = stages.map(function (entry, idx) {
+          return { entry: entry, idx: idx, score: computeDifficulty(entry) };
+        }).sort(function (a, b) {
+          if (a.score === b.score) return a.idx - b.idx;
+          return a.score - b.score;
+        });
+        let targetEntry = stage || (Number.isFinite(numericIndex) && numericIndex >= 0 && numericIndex < stages.length ? stages[numericIndex] : null);
+        let normalizedIndex = -1;
+        if (targetEntry) {
+          const targetId = targetEntry.id;
+          normalizedIndex = rankedStages.findIndex(function (item) {
+            return item.entry && item.entry.id === targetId;
+          });
+        }
+        if (normalizedIndex < 0) {
+          normalizedIndex = Number.isFinite(numericIndex) && numericIndex >= 0 ? Math.min(numericIndex, rankedStages.length - 1) : 0;
+        }
+        if (normalizedIndex < 0) normalizedIndex = 0;
+        if (normalizedIndex >= rankedStages.length) normalizedIndex = rankedStages.length - 1;
+        const segmentSize = Math.max(1, Math.ceil(pool.length / rankedStages.length));
+        let start = normalizedIndex * segmentSize;
+        if (start >= pool.length) start = pool.length - segmentSize;
+        if (start < 0) start = 0;
+        let end = start + segmentSize;
+        if (end > pool.length) end = pool.length;
+        const segment = pool.slice(start, end);
+        if (!segment.length) return [];
+        const max = Math.min(segment.length, Math.floor(count));
         const used = new Set();
         const picks = [];
-        while (picks.length < max && used.size < pool.length) {
-          const idx = Math.floor(Math.random() * pool.length);
-          const candidate = pool[idx];
+        while (picks.length < max && used.size < segment.length) {
+          const idx = Math.floor(Math.random() * segment.length);
+          const candidate = segment[idx];
           if (!candidate || used.has(candidate.id)) continue;
           used.add(candidate.id);
           picks.push(candidate);

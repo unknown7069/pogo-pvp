@@ -155,11 +155,18 @@
   // Use pow to increase the gap between low and high stat Pokémon.
   function calcGoCp(stats) {
     if (!stats) return 10;
-    const a = Number(stats.attack || 0) - 20;
-    const d = Number(stats.defense || 0) - 20;
-    const h = Number(stats.hp || 0) - 20;
-    const s = Number(stats.speed || 0) - 20;
-    const base = Math.pow(a * d * h * s, 0.5) / 5;
+    function normalize(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return 1;
+      const adjusted = n - 20;
+      return adjusted > 1 ? adjusted : 1;
+    }
+    const a = normalize(stats.attack);
+    const d = normalize(stats.defense);
+    const h = normalize(stats.hp);
+    const s = normalize(stats.speed);
+    const product = a * d * h * s;
+    const base = Math.sqrt(product) / 5 + 10;
     return Math.round(Math.max(10, base));
   }
 
