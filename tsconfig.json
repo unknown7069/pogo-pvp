@@ -4,15 +4,20 @@
     "module": "ES2020",
     "lib": ["DOM", "ES2019"],
     "moduleResolution": "node",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "allowJs": true,
     "strict": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "typeRoots": ["./src/types", "./node_modules/@types"]
   },
   "include": [
-    "**/*.ts"
+    "src/**/*"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "dist"
   ]
 }
