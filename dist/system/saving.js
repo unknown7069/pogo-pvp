@@ -24,7 +24,6 @@
     }
     var hasStorage = storageAvailable();
     // --- Backing store -------------------------------------------------------
-    // Use a single in-memory mirror to avoid repeated JSON.parse on get().
     var state = (function init() {
         if (!hasStorage)
             return {};
@@ -55,7 +54,6 @@
         global.addEventListener('storage', function (e) {
             if (e.key !== STORAGE_KEY)
                 return;
-            // e.newValue can be null (e.g., clear/remove); safeParse handles it.
             state = safeParse(e.newValue);
             notify();
         });
@@ -63,10 +61,9 @@
     // --- Public API ----------------------------------------------------------
     var api = {
         get: function (key, fallback) {
-            return Object.prototype.hasOwnProperty.call(state, key) ? state[key] : (arguments.length > 1 ? fallback : null);
+            return Object.prototype.hasOwnProperty.call(state, key) ? state[key] : (arguments.length > 1 ? fallback !== null && fallback !== void 0 ? fallback : null : null);
         },
         set: function (key, value) {
-            // Avoid unnecessary writes if value is identical (shallow compare).
             if (Object.prototype.hasOwnProperty.call(state, key) && state[key] === value)
                 return;
             state[key] = value;
@@ -81,14 +78,12 @@
             notify();
         },
         clear: function () {
-            // Avoid a write if already empty.
             if (Object.keys(state).length === 0)
                 return;
             state = {};
             persist(state);
             notify();
         },
-        // --- Convenience (non-breaking additions) -----------------------------
         keys: function () { return Object.keys(state); },
         all: function () { return Object.assign({}, state); },
         read: function () { return Object.assign({}, state); },
@@ -117,7 +112,6 @@
             if (typeof fn !== 'function')
                 return function () { };
             listeners.add(fn);
-            // Call immediately with current state for convenience.
             try {
                 fn(state);
             }

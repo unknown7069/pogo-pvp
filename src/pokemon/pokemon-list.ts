@@ -1,9 +1,8 @@
-
-(function(){
-  const store = window.AppState || null;
-  const PD = window.PokemonData || {};
-  const grid = document.getElementById('pokemonGrid');
-  const countEl = document.getElementById('pokemonCount');
+(function () {
+  const store = (window.AppState || null) as AppStateApi | null;
+  const PD = (window.PokemonData || {}) as PokemonDataStore & Record<string, unknown>;
+  const grid = document.getElementById('pokemonGrid') as HTMLElement | null;
+  const countEl = document.getElementById('pokemonCount') as HTMLElement | null;
   if (!grid) return;
 
   const SHOW_SPRITES = true;
@@ -23,7 +22,7 @@
 
   const writeState = (typeof window.writeState === 'function')
     ? window.writeState
-    : function (patch) {
+    : function (patch: Record<string, unknown>) {
       if (!patch || Object(patch) !== patch) return;
       if (store && typeof store.write === 'function') { store.write(patch); return; }
       if (store && typeof store.merge === 'function') { store.merge(patch); return; }
@@ -43,36 +42,40 @@
     ? window.subscribeState
     : (store && typeof store.subscribe === 'function' ? store.subscribe.bind(store) : null);
 
-  function sanitizeEntry(entry) {
+  function sanitizeEntry(entry: unknown) {
     if (!entry || typeof entry !== 'object') return null;
-    const uid = typeof entry.uid === 'string' && entry.uid ? entry.uid : null;
-    const id = Number(entry.id);
-    const level = Number(entry.level);
+    const source = entry as Record<string, unknown>;
+    const uid = typeof source.uid === 'string' && source.uid ? source.uid : null;
+    const id = Number(source.id);
+    const level = Number(source.level);
     if (!uid || Number.isNaN(id) || Number.isNaN(level)) return null;
-    const normalized = {
+    const normalized: PokemonCollectionEntry = {
       uid,
       id,
       level,
-      name: typeof entry.name === 'string' ? entry.name : null,
-      createdAt: Number.isFinite(entry.createdAt) ? Number(entry.createdAt) : null,
+      name: typeof source.name === 'string' ? source.name : null,
+      createdAt: Number.isFinite(source.createdAt as number) ? Number(source.createdAt) : undefined,
     };
-    if (entry.shiny != null) normalized.shiny = entry.shiny;
-    if (entry.ivHp != null) normalized.ivHp = entry.ivHp;
-    if (entry.ivAttack != null) normalized.ivAttack = entry.ivAttack;
-    if (entry.ivDefense != null) normalized.ivDefense = entry.ivDefense;
-    if (entry.ivs && typeof entry.ivs === 'object') {
+    if (source.shiny != null) normalized.shiny = source.shiny as boolean | number | null;
+    if (source.ivHp != null) normalized.ivHp = Number(source.ivHp);
+    if (source.ivAttack != null) normalized.ivAttack = Number(source.ivAttack);
+    if (source.ivDefense != null) normalized.ivDefense = Number(source.ivDefense);
+    if (source.ivs && typeof source.ivs === 'object') {
+      const ivs = source.ivs as Record<string, unknown>;
       normalized.ivs = {
-        hp: entry.ivs.hp,
-        attack: entry.ivs.attack,
-        defense: entry.ivs.defense,
+        hp: ivs.hp as number | undefined,
+        attack: ivs.attack as number | undefined,
+        defense: ivs.defense as number | undefined,
       };
     }
     return normalized;
   }
 
-  function getCollection(state) {
-    const src = state && Array.isArray(state.playerPokemon) ? state.playerPokemon : [];
-    const clean = [];
+  function getCollection(state: unknown) {
+    const src = state && typeof state === 'object' && Array.isArray((state as Record<string, unknown>).playerPokemon)
+      ? (state as Record<string, unknown>).playerPokemon as unknown[]
+      : [];
+    const clean: PokemonCollectionEntry[] = [];
     for (let i = 0; i < src.length; i++) {
       const entry = sanitizeEntry(src[i]);
       if (entry) clean.push(entry);
@@ -80,7 +83,7 @@
     return clean;
   }
 
-  function collectionEquals(a, b) {
+  function collectionEquals(a: PokemonCollectionEntry[], b: PokemonCollectionEntry[]) {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
       const x = a[i];
@@ -100,28 +103,30 @@
     return true;
   }
 
-  function formatLevel(level) {
+  function formatLevel(level: number) {
     const rounded = Math.round(level);
     if (Math.abs(level - rounded) < 0.01) return String(rounded);
     return level.toFixed(1).replace(/0+$/, '').replace(/\.$/, '');
   }
 
-  function getMonById(source) {
-    const entry = source && typeof source === 'object' ? source : null;
+  function getMonById(source: unknown) {
+    const entry = source && typeof source === 'object' ? source as Record<string, unknown> : null;
     const key = entry ? Number(entry.id) : Number(source);
     if (!Number.isFinite(key)) return { id: key, name: 'Pokemon', types: ['normal'], fastMoves: [], chargedMoves: [] };
     if (PD.getPokemonById) {
-      const found = PD.getPokemonById(key, entry || undefined);
-      if (found) return found;
+      try {
+        const found = PD.getPokemonById(key as number, entry as unknown as PokemonCollectionEntry | undefined);
+        if (found) return found;
+      } catch (_) {}
     }
     if (PD.byId && typeof PD.byId.get === 'function') {
-      const viaMap = PD.byId.get(key);
+      const viaMap = PD.byId.get(key as number);
       if (viaMap) return viaMap;
     }
     return { id: key, name: 'Pokemon', types: ['normal'], fastMoves: [], chargedMoves: [] };
   }
 
-  function computeCp(id, level) {
+  function computeCp(id: number, level: number) {
     try {
       if (PD.getGoStatsById) {
         const stats = PD.getGoStatsById(id, level);
@@ -133,7 +138,7 @@
     return 10;
   }
 
-  function getSpriteUrl(mon) {
+  function getSpriteUrl(mon: any) {
     const name = (mon && mon.name) || 'Pokemon';
     const shiny = !!(mon && mon.shiny);
     if (PD.getBattleSpriteUrl) {
@@ -151,11 +156,11 @@
     return '';
   }
 
-  function updateCount(count) {
+  function updateCount(count: number) {
     if (countEl) countEl.textContent = `Pokemon ${count}`;
   }
 
-  function renderGrid(collection) {
+  function renderGrid(collection: PokemonCollectionEntry[]) {
     grid.textContent = '';
     updateCount(collection.length);
     if (!collection.length) {
@@ -167,7 +172,7 @@
     }
     const frag = document.createDocumentFragment();
     collection.forEach((entry) => {
-      const mon = getMonById(entry);
+      const mon = getMonById(entry) as any;
       const card = document.createElement('div');
       card.className = 'pokemon-card';
 
@@ -175,15 +180,15 @@
       btn.className = 'pokemon-btn';
       btn.type = 'button';
       btn.dataset.id = String(entry.id);
-      btn.dataset.uid = entry.uid;
+      btn.dataset.uid = entry.uid || undefined;
       btn.dataset.level = String(entry.level);
       btn.dataset.name = mon.name || 'Pokemon';
       btn.setAttribute('aria-label', `${mon.name || 'Pokemon'} level ${formatLevel(entry.level)}`);
 
-      const cp = computeCp(entry.id, entry.level);
+      const cp = computeCp(entry.id, entry.level ?? 0);
       const cpEl = document.createElement('div');
       cpEl.className = 'cp';
-      cpEl.textContent = `Lvl ${formatLevel(entry.level)} | CP ${cp}`;
+      cpEl.textContent = `Lvl ${formatLevel(entry.level ?? 0)} | CP ${cp}`;
 
       const nameEl = document.createElement('div');
       nameEl.className = 'name';
@@ -202,7 +207,7 @@
       card.appendChild(btn);
       card.appendChild(cpEl);
       card.appendChild(nameEl);
-      card.title = `${mon.name || 'Pokemon'} (Lvl ${formatLevel(entry.level)})`;
+      card.title = `${mon.name || 'Pokemon'} (Lvl ${formatLevel(entry.level ?? 0)})`;
       frag.appendChild(card);
     });
     grid.appendChild(frag);
@@ -213,7 +218,7 @@
   renderGrid(collection);
 
   if (typeof subscribeState === 'function') {
-    subscribeState((stateSnapshot) => {
+    subscribeState((stateSnapshot: unknown) => {
       const next = getCollection(stateSnapshot);
       if (!collectionEquals(collection, next)) {
         collection = next;
@@ -225,19 +230,20 @@
   }
 
   grid.addEventListener('click', (event) => {
-    const btn = event.target.closest('.pokemon-btn');
+    const target = event.target as HTMLElement | null;
+    const btn = target ? target.closest('.pokemon-btn') as HTMLElement | null : null;
     if (!btn) return;
     const id = Number(btn.dataset.id || 0);
     if (!id) return;
     const level = Number(btn.dataset.level || 0) || 20;
-    const view = { id, name: btn.dataset.name || '', level };
+    const view: PokemonCollectionEntry = { id, name: btn.dataset.name || null, level };
     const uid = btn.dataset.uid;
     if (uid) view.uid = uid;
     writeState({ viewPokemon: view });
     window.location.href = 'pokemon-detail.html';
   });
 
-  const page = document.querySelector('.phone.phone-column');
+  const page = document.querySelector('.phone.phone-column') as HTMLElement | null;
   if (page && window.UI && typeof window.UI.attachDragScroll === 'function') {
     window.UI.attachDragScroll(page);
   }
@@ -247,3 +253,6 @@
     window.location.href = 'rocket-select.html';
   });
 })();
+
+
+

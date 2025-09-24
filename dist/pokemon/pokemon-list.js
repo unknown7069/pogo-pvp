@@ -1,6 +1,6 @@
 (function () {
-    const store = window.AppState || null;
-    const PD = window.PokemonData || {};
+    const store = (window.AppState || null);
+    const PD = (window.PokemonData || {});
     const grid = document.getElementById('pokemonGrid');
     const countEl = document.getElementById('pokemonCount');
     if (!grid)
@@ -52,37 +52,41 @@
     function sanitizeEntry(entry) {
         if (!entry || typeof entry !== 'object')
             return null;
-        const uid = typeof entry.uid === 'string' && entry.uid ? entry.uid : null;
-        const id = Number(entry.id);
-        const level = Number(entry.level);
+        const source = entry;
+        const uid = typeof source.uid === 'string' && source.uid ? source.uid : null;
+        const id = Number(source.id);
+        const level = Number(source.level);
         if (!uid || Number.isNaN(id) || Number.isNaN(level))
             return null;
         const normalized = {
             uid,
             id,
             level,
-            name: typeof entry.name === 'string' ? entry.name : null,
-            createdAt: Number.isFinite(entry.createdAt) ? Number(entry.createdAt) : null,
+            name: typeof source.name === 'string' ? source.name : null,
+            createdAt: Number.isFinite(source.createdAt) ? Number(source.createdAt) : undefined,
         };
-        if (entry.shiny != null)
-            normalized.shiny = entry.shiny;
-        if (entry.ivHp != null)
-            normalized.ivHp = entry.ivHp;
-        if (entry.ivAttack != null)
-            normalized.ivAttack = entry.ivAttack;
-        if (entry.ivDefense != null)
-            normalized.ivDefense = entry.ivDefense;
-        if (entry.ivs && typeof entry.ivs === 'object') {
+        if (source.shiny != null)
+            normalized.shiny = source.shiny;
+        if (source.ivHp != null)
+            normalized.ivHp = Number(source.ivHp);
+        if (source.ivAttack != null)
+            normalized.ivAttack = Number(source.ivAttack);
+        if (source.ivDefense != null)
+            normalized.ivDefense = Number(source.ivDefense);
+        if (source.ivs && typeof source.ivs === 'object') {
+            const ivs = source.ivs;
             normalized.ivs = {
-                hp: entry.ivs.hp,
-                attack: entry.ivs.attack,
-                defense: entry.ivs.defense,
+                hp: ivs.hp,
+                attack: ivs.attack,
+                defense: ivs.defense,
             };
         }
         return normalized;
     }
     function getCollection(state) {
-        const src = state && Array.isArray(state.playerPokemon) ? state.playerPokemon : [];
+        const src = state && typeof state === 'object' && Array.isArray(state.playerPokemon)
+            ? state.playerPokemon
+            : [];
         const clean = [];
         for (let i = 0; i < src.length; i++) {
             const entry = sanitizeEntry(src[i]);
@@ -130,9 +134,12 @@
         if (!Number.isFinite(key))
             return { id: key, name: 'Pokemon', types: ['normal'], fastMoves: [], chargedMoves: [] };
         if (PD.getPokemonById) {
-            const found = PD.getPokemonById(key, entry || undefined);
-            if (found)
-                return found;
+            try {
+                const found = PD.getPokemonById(key, entry);
+                if (found)
+                    return found;
+            }
+            catch (_) { }
         }
         if (PD.byId && typeof PD.byId.get === 'function') {
             const viaMap = PD.byId.get(key);
@@ -190,6 +197,7 @@
         }
         const frag = document.createDocumentFragment();
         collection.forEach((entry) => {
+            var _a, _b, _c;
             const mon = getMonById(entry);
             const card = document.createElement('div');
             card.className = 'pokemon-card';
@@ -197,14 +205,14 @@
             btn.className = 'pokemon-btn';
             btn.type = 'button';
             btn.dataset.id = String(entry.id);
-            btn.dataset.uid = entry.uid;
+            btn.dataset.uid = entry.uid || undefined;
             btn.dataset.level = String(entry.level);
             btn.dataset.name = mon.name || 'Pokemon';
             btn.setAttribute('aria-label', `${mon.name || 'Pokemon'} level ${formatLevel(entry.level)}`);
-            const cp = computeCp(entry.id, entry.level);
+            const cp = computeCp(entry.id, (_a = entry.level) !== null && _a !== void 0 ? _a : 0);
             const cpEl = document.createElement('div');
             cpEl.className = 'cp';
-            cpEl.textContent = `Lvl ${formatLevel(entry.level)} | CP ${cp}`;
+            cpEl.textContent = `Lvl ${formatLevel((_b = entry.level) !== null && _b !== void 0 ? _b : 0)} | CP ${cp}`;
             const nameEl = document.createElement('div');
             nameEl.className = 'name';
             nameEl.textContent = mon.name || 'Pokemon';
@@ -220,7 +228,7 @@
             card.appendChild(btn);
             card.appendChild(cpEl);
             card.appendChild(nameEl);
-            card.title = `${mon.name || 'Pokemon'} (Lvl ${formatLevel(entry.level)})`;
+            card.title = `${mon.name || 'Pokemon'} (Lvl ${formatLevel((_c = entry.level) !== null && _c !== void 0 ? _c : 0)})`;
             frag.appendChild(card);
         });
         grid.appendChild(frag);
@@ -241,14 +249,15 @@
         });
     }
     grid.addEventListener('click', (event) => {
-        const btn = event.target.closest('.pokemon-btn');
+        const target = event.target;
+        const btn = target ? target.closest('.pokemon-btn') : null;
         if (!btn)
             return;
         const id = Number(btn.dataset.id || 0);
         if (!id)
             return;
         const level = Number(btn.dataset.level || 0) || 20;
-        const view = { id, name: btn.dataset.name || '', level };
+        const view = { id, name: btn.dataset.name || null, level };
         const uid = btn.dataset.uid;
         if (uid)
             view.uid = uid;

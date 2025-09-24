@@ -67,19 +67,22 @@
             ],
         },
     ];
-    const STAGES = rawStages.map(function (stage) {
+    const STAGES = rawStages.map((stage) => {
         const team = Array.isArray(stage.team)
-            ? stage.team.map(function (member) {
-                const speciesId = Number(member && (member.speciesId != null ? member.speciesId : member.id));
+            ? stage.team.map((member) => {
+                const raw = member;
+                const speciesSource = raw.speciesId != null ? raw.speciesId : raw.id;
+                const speciesId = Number(speciesSource);
                 const normalizedId = Number.isFinite(speciesId) ? speciesId : 0;
+                const overrides = raw.overrides && typeof raw.overrides === 'object'
+                    ? Object.assign({}, raw.overrides)
+                    : undefined;
                 return Object.freeze({
                     id: normalizedId,
                     speciesId: normalizedId,
-                    name: member && member.name != null ? String(member.name) : null,
-                    level: member && Number.isFinite(member.level) ? Number(member.level) : 20,
-                    overrides: member && member.overrides && typeof member.overrides === 'object'
-                        ? Object.assign({}, member.overrides)
-                        : undefined,
+                    name: raw.name != null ? String(raw.name) : null,
+                    level: Number.isFinite(raw.level) ? Number(raw.level) : 20,
+                    overrides: overrides,
                 });
             })
             : [];
@@ -88,7 +91,7 @@
             name: stage.name,
             quote: stage.quote,
             icon: stage.icon,
-            team: team,
+            team,
         });
     });
     Object.freeze(STAGES);

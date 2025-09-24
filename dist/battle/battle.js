@@ -1,5 +1,6 @@
 // Battle logic with energy bar UI
 (function () {
+    var _a, _b, _c;
     // ---------------------------
     // Helpers and DOM references
     // ---------------------------
@@ -64,10 +65,11 @@
     // ---------------------------
     // Real moves and Pokémon data
     // ---------------------------
-    const PD = window.PokemonData || {};
-    const FAST_BY_ID = PD.FAST_MOVES_BY_ID || {};
-    const CHARGED_BY_ID = PD.CHARGED_MOVES_BY_ID || {};
-    const ALL_SPECIES = Array.isArray(PD.all) ? PD.all : [];
+    const PD = (_a = window.PokemonData) !== null && _a !== void 0 ? _a : null;
+    const FAST_BY_ID = (_b = PD === null || PD === void 0 ? void 0 : PD.FAST_MOVES_BY_ID) !== null && _b !== void 0 ? _b : {};
+    const CHARGED_BY_ID = (_c = PD === null || PD === void 0 ? void 0 : PD.CHARGED_MOVES_BY_ID) !== null && _c !== void 0 ? _c : {};
+    const allSpeciesRaw = PD === null || PD === void 0 ? void 0 : PD.all;
+    const ALL_SPECIES = Array.isArray(allSpeciesRaw) ? allSpeciesRaw : [];
     // ---------------------------
     // Type effectiveness (Pokemon GO-style)
     // ---------------------------
@@ -198,17 +200,18 @@
         return normalized;
     }
     function makePokemonFromId(id, levelOverride, overrides) {
+        var _a, _b;
         const key = Number(id);
         const level = sanitizeLevelValue(levelOverride, 20);
         let mon = null;
-        if (PD.getPokemonById) {
+        if (PD === null || PD === void 0 ? void 0 : PD.getPokemonById) {
             try {
                 mon = PD.getPokemonById(key, overrides || undefined);
             }
             catch (_) { }
         }
-        if (!mon && PD.byId && PD.byId.get) {
-            mon = PD.byId.get(key);
+        if (!mon && (PD === null || PD === void 0 ? void 0 : PD.byId) && ((_a = PD === null || PD === void 0 ? void 0 : PD.byId) === null || _a === void 0 ? void 0 : _a.get)) {
+            mon = (_b = PD === null || PD === void 0 ? void 0 : PD.byId) === null || _b === void 0 ? void 0 : _b.get(key);
         }
         if (!mon) {
             const maxHP = 1;
@@ -233,7 +236,7 @@
         }
         let stats = null;
         try {
-            stats = PD.getGoStatsById ? PD.getGoStatsById(mon.id, level) : null;
+            stats = (PD === null || PD === void 0 ? void 0 : PD.getGoStatsById) ? PD === null || PD === void 0 ? void 0 : PD.getGoStatsById(mon.id, level) : null;
         }
         catch (_) { }
         if (!stats || typeof stats !== 'object') {
@@ -245,8 +248,8 @@
         const charged = chargedIds.slice(0, 3).map(chargedFromId);
         let cp = 10;
         try {
-            if (PD.calcGoCp)
-                cp = PD.calcGoCp(stats);
+            if (PD === null || PD === void 0 ? void 0 : PD.calcGoCp)
+                cp = PD === null || PD === void 0 ? void 0 : PD.calcGoCp(stats);
         }
         catch (_) { }
         return {
@@ -305,14 +308,15 @@
                 : (arguments.length > 1 ? fallback : null);
         };
     const __state = readState();
-    const selectedTeamMembers = Array.isArray(__state.selectedTeamMembers) ? __state.selectedTeamMembers : null;
-    const selectedTeamUids = Array.isArray(__state.selectedTeamUids) ? __state.selectedTeamUids : null;
-    const selectedTeamIds = Array.isArray(__state.selectedTeamIds) ? __state.selectedTeamIds : null;
-    const selectedTeamNamesLegacy = Array.isArray(__state.selectedTeam) ? __state.selectedTeam : null;
-    const selectedBattle = (__state.selectedBattle && typeof __state.selectedBattle.index === 'number' && __state.selectedBattle.label)
-        ? __state.selectedBattle
+    const stateAny = __state;
+    const selectedTeamMembers = Array.isArray(stateAny.selectedTeamMembers) ? stateAny.selectedTeamMembers : null;
+    const selectedTeamUids = Array.isArray(stateAny.selectedTeamUids) ? stateAny.selectedTeamUids : null;
+    const selectedTeamIds = Array.isArray(stateAny.selectedTeamIds) ? stateAny.selectedTeamIds : null;
+    const selectedTeamNamesLegacy = Array.isArray(stateAny.selectedTeam) ? stateAny.selectedTeam : null;
+    const selectedBattle = (stateAny.selectedBattle && typeof stateAny.selectedBattle.index === 'number' && stateAny.selectedBattle.label)
+        ? stateAny.selectedBattle
         : null;
-    const selectedStageId = typeof __state.selectedStageId === 'string' ? __state.selectedStageId : null;
+    const selectedStageId = typeof stateAny.selectedStageId === 'string' ? stateAny.selectedStageId : null;
     const hasModernSelection = (selectedTeamMembers && selectedTeamMembers.length) || (selectedTeamUids && selectedTeamUids.length);
     const hasLegacyIds = selectedTeamIds && selectedTeamIds.length;
     const hasLegacyNames = selectedTeamNamesLegacy && selectedTeamNamesLegacy.length;
@@ -322,7 +326,7 @@
         // return;
     }
     const opponentIdx = Number(selectedBattle.index || 0);
-    const playerCollectionRaw = Array.isArray(__state.playerPokemon) ? __state.playerPokemon : [];
+    const playerCollectionRaw = Array.isArray(stateAny.playerPokemon) ? stateAny.playerPokemon : [];
     const playerCollection = playerCollectionRaw.map(sanitizeCollectionEntry).filter(Boolean);
     const entriesByUid = new Map();
     for (let i = 0; i < playerCollection.length; i++) {
@@ -588,7 +592,7 @@
     }
     function restoreBattleStateIfPresent() {
         try {
-            const saved = getStateValue(PERSIST_KEY);
+            const saved = getStateValue(PERSIST_KEY, null);
             if (!saved || typeof saved !== 'object')
                 return false;
             if (Number(saved.stageIndex) !== Number(opponentIdx))
@@ -768,6 +772,7 @@
         });
     }
     function updateHeaderUI() {
+        var _a, _b, _c, _d;
         if (oppNameEl)
             oppNameEl.textContent = opponent.name;
         if (oppCpEl)
@@ -780,8 +785,8 @@
         renderTypes(playerTypesEl, player.types);
         // Update sprites
         // TODO - handle shiny option
-        const oppUrl = PD.getBattleSpriteUrl(opponent.name, 'opponent', opponent.shiny);
-        const playerUrl = PD.getBattleSpriteUrl(player.name, 'player', player.shiny);
+        const oppUrl = (_b = (_a = PD === null || PD === void 0 ? void 0 : PD.getBattleSpriteUrl) === null || _a === void 0 ? void 0 : _a.call(PD, opponent.name, 'opponent', opponent.shiny)) !== null && _b !== void 0 ? _b : '';
+        const playerUrl = (_d = (_c = PD === null || PD === void 0 ? void 0 : PD.getBattleSpriteUrl) === null || _c === void 0 ? void 0 : _c.call(PD, player.name, 'player', player.shiny)) !== null && _d !== void 0 ? _d : '';
         if (oppSpriteImg) {
             oppSpriteImg.src = oppUrl;
             oppSpriteImg.alt = opponent.name;
@@ -1469,6 +1474,7 @@
         state.timers.global = setInterval(onTick, TICK_MS);
     }
     async function performSwitch(nextIndex) {
+        var _a, _b;
         if (nextIndex === activePlayerIndex)
             return;
         if (nextIndex < 0 || nextIndex >= playerTeam.length)
@@ -1506,7 +1512,7 @@
         const stageEl = document.querySelector('.battle-stage');
         const spriteHost = playerSpriteEl;
         const spriteImg = playerSpriteImg;
-        const nextSpriteUrl = PD.getBattleSpriteUrl(nextPokemon.name, 'player', nextPokemon.shiny);
+        const nextSpriteUrl = (_b = (_a = PD === null || PD === void 0 ? void 0 : PD.getBattleSpriteUrl) === null || _a === void 0 ? void 0 : _a.call(PD, nextPokemon.name, 'player', nextPokemon.shiny)) !== null && _b !== void 0 ? _b : '';
         // Helper to await animations even when Animation.finished isn't supported
         const waitForAnimation = (animation, fallbackMs) => new Promise((resolve) => {
             if (!animation) {
@@ -1744,6 +1750,7 @@
         persistBattleState();
     }
     function handleOpponentFaint() {
+        var _a, _b, _c, _d;
         if (opponentTeam[activeOpponentIndex])
             opponentTeam[activeOpponentIndex].fainted = true;
         // Pause battle during switch / end evaluation
@@ -1757,8 +1764,8 @@
             showResult('win');
             try {
                 const cur = readState();
-                const idx = Number((cur.selectedBattle && cur.selectedBattle.index) || opponentIdx || 0);
-                const prev = Number(cur.rocketUnlocked || 1) || 1;
+                const idx = Number(((_c = (_b = (_a = cur.selectedBattle) === null || _a === void 0 ? void 0 : _a.index) !== null && _b !== void 0 ? _b : opponentIdx) !== null && _c !== void 0 ? _c : 0));
+                const prev = Number((_d = cur.rocketUnlocked) !== null && _d !== void 0 ? _d : 1) || 1;
                 const next = Math.max(prev, idx + 2);
                 const capped = Math.min(next, 6);
                 if (capped !== prev) {

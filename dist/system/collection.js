@@ -108,7 +108,9 @@
         writeState(patch);
         return true;
     }
-    global.PlayerCollection = global.PlayerCollection || {};
-    global.PlayerCollection.createPokemon = createPokemon;
-    global.PlayerCollection.releasePokemon = releasePokemon;
+    var existing = (global.PlayerCollection || {});
+    global.PlayerCollection = Object.assign({}, existing, {
+        createPokemon: createPokemon,
+        releasePokemon: releasePokemon,
+    });
 })(window);
