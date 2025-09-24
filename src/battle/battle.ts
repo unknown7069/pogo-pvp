@@ -65,10 +65,11 @@
   // ---------------------------
   // Real moves and Pokémon data
   // ---------------------------
-  const PD: PokemonDataStore = window.PokemonData || {};
-  const FAST_BY_ID: Record<string, MoveData> = PD.FAST_MOVES_BY_ID || {};
-  const CHARGED_BY_ID: Record<string, MoveData> = PD.CHARGED_MOVES_BY_ID || {};
-  const ALL_SPECIES: PokemonSpeciesData[] = Array.isArray(PD.all) ? PD.all : [];
+  const PD = window.PokemonData ?? null;
+  const FAST_BY_ID: Record<string, MoveData> = PD?.FAST_MOVES_BY_ID ?? {};
+  const CHARGED_BY_ID: Record<string, MoveData> = PD?.CHARGED_MOVES_BY_ID ?? {};
+  const allSpeciesRaw = PD?.all;
+  const ALL_SPECIES: PokemonSpeciesData[] = Array.isArray(allSpeciesRaw) ? allSpeciesRaw : [];
 
   // ---------------------------
   // Type effectiveness (Pokemon GO-style)
@@ -193,11 +194,11 @@
     const key = Number(id);
     const level = sanitizeLevelValue(levelOverride, 20);
     let mon = null;
-    if (PD.getPokemonById) {
+    if (PD?.getPokemonById) {
       try { mon = PD.getPokemonById(key, overrides || undefined); } catch (_) {}
     }
-    if (!mon && PD.byId && PD.byId.get) {
-      mon = PD.byId.get(key);
+    if (!mon && PD?.byId && PD?.byId?.get) {
+      mon = PD?.byId?.get(key);
     }
     if (!mon) {
       const maxHP = 1;
@@ -222,7 +223,7 @@
     }
     let stats = null;
     try {
-      stats = PD.getGoStatsById ? PD.getGoStatsById(mon.id, level) : null;
+      stats = PD?.getGoStatsById ? PD?.getGoStatsById(mon.id, level) : null;
     } catch (_) {}
     if (!stats || typeof stats !== 'object') {
       stats = { hp: 100, attack: 50, defense: 50, speed: 50 };
@@ -233,7 +234,7 @@
     const charged = chargedIds.slice(0,3).map(chargedFromId);
     let cp = 10;
     try {
-      if (PD.calcGoCp) cp = PD.calcGoCp(stats);
+      if (PD?.calcGoCp) cp = PD?.calcGoCp(stats);
     } catch (_) {}
     return {
       id: mon.id,
@@ -289,15 +290,16 @@
         ? current[key]
         : (arguments.length > 1 ? fallback : null);
     };
-  const __state = readState();
-  const selectedTeamMembers = Array.isArray(__state.selectedTeamMembers) ? __state.selectedTeamMembers : null;
-  const selectedTeamUids = Array.isArray(__state.selectedTeamUids) ? __state.selectedTeamUids : null;
-  const selectedTeamIds = Array.isArray(__state.selectedTeamIds) ? __state.selectedTeamIds : null;
-  const selectedTeamNamesLegacy = Array.isArray(__state.selectedTeam) ? __state.selectedTeam : null;
-  const selectedBattle = (__state.selectedBattle && typeof __state.selectedBattle.index === 'number' && __state.selectedBattle.label)
-    ? __state.selectedBattle
+  const __state = readState() as Record<string, unknown>;
+  const stateAny = __state as Record<string, any>;
+  const selectedTeamMembers = Array.isArray(stateAny.selectedTeamMembers) ? stateAny.selectedTeamMembers : null;
+  const selectedTeamUids = Array.isArray(stateAny.selectedTeamUids) ? stateAny.selectedTeamUids : null;
+  const selectedTeamIds = Array.isArray(stateAny.selectedTeamIds) ? stateAny.selectedTeamIds : null;
+  const selectedTeamNamesLegacy = Array.isArray(stateAny.selectedTeam) ? stateAny.selectedTeam : null;
+  const selectedBattle = (stateAny.selectedBattle && typeof stateAny.selectedBattle.index === 'number' && stateAny.selectedBattle.label)
+    ? stateAny.selectedBattle
     : null;
-  const selectedStageId = typeof __state.selectedStageId === 'string' ? __state.selectedStageId : null;
+  const selectedStageId = typeof stateAny.selectedStageId === 'string' ? stateAny.selectedStageId : null;
   const hasModernSelection = (selectedTeamMembers && selectedTeamMembers.length) || (selectedTeamUids && selectedTeamUids.length);
   const hasLegacyIds = selectedTeamIds && selectedTeamIds.length;
   const hasLegacyNames = selectedTeamNamesLegacy && selectedTeamNamesLegacy.length;
@@ -309,7 +311,7 @@
 
   const opponentIdx = Number(selectedBattle.index || 0);
 
-  const playerCollectionRaw = Array.isArray(__state.playerPokemon) ? __state.playerPokemon : [];
+  const playerCollectionRaw = Array.isArray(stateAny.playerPokemon) ? stateAny.playerPokemon : [];
   const playerCollection = playerCollectionRaw.map(sanitizeCollectionEntry).filter(Boolean);
   const entriesByUid = new Map();
   for (let i = 0; i < playerCollection.length; i++) {
@@ -577,7 +579,7 @@
 
   function restoreBattleStateIfPresent() {
     try {
-      const saved = getStateValue(PERSIST_KEY);
+      const saved = getStateValue(PERSIST_KEY, null);
       if (!saved || typeof saved !== 'object') return false;
       if (Number(saved.stageIndex) !== Number(opponentIdx)) return false;
       // Validate team matches
@@ -750,8 +752,8 @@
     renderTypes(playerTypesEl, player.types);
     // Update sprites
     // TODO - handle shiny option
-    const oppUrl = PD.getBattleSpriteUrl(opponent.name, 'opponent', opponent.shiny);
-    const playerUrl = PD.getBattleSpriteUrl(player.name, 'player', player.shiny);
+    const oppUrl = PD?.getBattleSpriteUrl?.(opponent.name, 'opponent', opponent.shiny) ?? '';
+    const playerUrl = PD?.getBattleSpriteUrl?.(player.name, 'player', player.shiny) ?? '';
     if (oppSpriteImg) {
       oppSpriteImg.src = oppUrl;
       oppSpriteImg.alt = opponent.name;
@@ -1417,7 +1419,7 @@
     const stageEl = document.querySelector('.battle-stage');
     const spriteHost = playerSpriteEl;
     const spriteImg = playerSpriteImg;
-    const nextSpriteUrl = PD.getBattleSpriteUrl(nextPokemon.name, 'player', nextPokemon.shiny);
+    const nextSpriteUrl = PD?.getBattleSpriteUrl?.(nextPokemon.name, 'player', nextPokemon.shiny) ?? '';
     // Helper to await animations even when Animation.finished isn't supported
     const waitForAnimation = (animation: Animation | null, fallbackMs?: number | null): Promise<void> => new Promise<void>((resolve) => {
       if (!animation) { resolve(undefined); return; }
@@ -1648,9 +1650,9 @@
       // No Pokémon left on opponent => win battle
       showResult('win');
       try {
-        const cur = readState();
-        const idx = Number((cur.selectedBattle && cur.selectedBattle.index) || opponentIdx || 0);
-        const prev = Number(cur.rocketUnlocked || 1) || 1;
+        const cur = readState() as Record<string, any>;
+        const idx = Number(((cur.selectedBattle as Record<string, any> | undefined)?.index ?? opponentIdx ?? 0));
+        const prev = Number(cur.rocketUnlocked ?? 1) || 1;
         const next = Math.max(prev, idx + 2);
         const capped = Math.min(next, 6);
         if (capped !== prev) {
@@ -1671,17 +1673,4 @@
 
   // We have valid state if we reached here; start countdown
   startCountdown();
-})();
-
-
-
-
-
-
-
-
-
-
-
-
-
+})();

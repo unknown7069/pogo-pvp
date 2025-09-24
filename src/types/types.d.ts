@@ -1,3 +1,11 @@
+interface MoveBuffConfig {
+  target?: 'self' | 'opponent';
+  chance?: number;
+  attack?: number;
+  defense?: number;
+  speed?: number;
+}
+
 interface MoveData {
   id: string;
   name: string;
@@ -9,21 +17,26 @@ interface MoveData {
   attackRate?: number;
   coolDownTime?: number;
   energyCost?: number;
-  specialEffects?: {
-    buff?: {
-      target?: 'self' | 'opponent';
-      chance?: number;
-      attack?: number;
-      defense?: number;
-    };
-  };
+  specialEffects?: string;
   buffs?: Record<string, unknown>;
+  rank?: number;
+  buff?: MoveBuffConfig;
+}
+
+interface PokemonBaseStats {
+  hp?: number;
+  attack?: number;
+  defense?: number;
+  spAttack?: number;
+  spDefense?: number;
+  speed?: number;
 }
 
 interface PokemonSpeciesData {
   id: number;
   name: string;
   types?: string[];
+  baseStats?: PokemonBaseStats;
   attack?: number;
   defense?: number;
   stamina?: number;
@@ -37,7 +50,7 @@ interface PokemonCollectionEntry {
   id: number;
   name?: string | null;
   level?: number;
-  shiny?: boolean;
+  shiny?: boolean | number | null;
   ivHp?: number;
   ivAttack?: number;
   ivDefense?: number;
@@ -49,36 +62,126 @@ interface PokemonCollectionEntry {
   fastMoveId?: string;
   chargedMoveIds?: string[];
   secondChargedMoveId?: string;
+  createdAt?: number;
+  overrides?: Record<string, unknown>;
+}
+
+interface PokemonGoStats {
+  hp: number;
+  attack: number;
+  defense: number;
+  speed: number;
+}
+
+interface PokemonStatsModule {
+  calcGoHp?: (baseStats: PokemonBaseStats | undefined, level: number) => number;
+  calcGoAttack?: (baseStats: PokemonBaseStats | undefined, level: number) => number;
+  calcGoDefense?: (baseStats: PokemonBaseStats | undefined, level: number) => number;
+  calcGoSpeed?: (baseStats: PokemonBaseStats | undefined, level: number) => number;
+  calcGoCp?: (stats: Partial<PokemonGoStats>) => number;
+  calcCpMultiplier?: (level: number) => number;
+  getCpMultiplier?: (level: number) => number;
+}
+
+interface PokemonFastMovesModule {
+  FAST_MOVES: ReadonlyArray<MoveData>;
+  FAST_MOVES_BY_ID: Record<string, MoveData>;
+  FAST_MOVE_IDS: string[];
+}
+
+interface PokemonChargedMovesModule {
+  CHARGED_MOVES: ReadonlyArray<MoveData>;
+  CHARGED_MOVES_BY_ID: Record<string, MoveData>;
+  CHARGED_MOVE_IDS: string[];
 }
 
 interface PokemonDataStore {
-  FAST_MOVES_BY_ID?: Record<string, MoveData>;
-  CHARGED_MOVES_BY_ID?: Record<string, MoveData>;
-  speciesById?: Record<number, PokemonSpeciesData>;
   all?: PokemonSpeciesData[];
-  getBattleSpriteUrl?: (name: string, side: 'player' | 'opponent', shiny?: boolean) => string;
-  getPokemonById?: (id: number, overrides?: PokemonCollectionEntry | null) => any;
-  getGoStatsById?: (id: number, level: number) => { hp?: number; attack?: number; defense?: number };
-  calcGoCp?: (stats: { hp?: number; attack?: number; defense?: number }) => number;
-  byId?: Map<number, any> | { get?: (id: number) => any };
-  getPokemonFastMove?: (id: string) => MoveData | undefined;
-  getPokemonChargedMove?: (id: string) => MoveData | undefined;
+  byId?: Map<number, PokemonSpeciesData>;
+  getPokemonById?: (id: number, overrides?: PokemonCollectionEntry | null) => PokemonSpeciesData | (PokemonSpeciesData & PokemonCollectionEntry) | null;
+  slugifyName?: (name: string) => string;
+  getForwardSpriteUrl?: (monOrName: string | PokemonSpeciesData) => string;
+  getBattleSpriteUrl?: (name: string, side: 'player' | 'opponent', isShiny?: boolean) => string;
+  FAST_MOVE_IDS?: string[];
+  CHARGED_MOVE_IDS?: string[];
+  FAST_MOVES?: ReadonlyArray<MoveData>;
+  FAST_MOVES_BY_ID?: Record<string, MoveData>;
+  CHARGED_MOVES?: ReadonlyArray<MoveData>;
+  CHARGED_MOVES_BY_ID?: Record<string, MoveData>;
+  TYPES?: ReadonlyArray<string>;
+  calcGoHp?: PokemonStatsModule['calcGoHp'];
+  calcGoAttack?: PokemonStatsModule['calcGoAttack'];
+  calcGoDefense?: PokemonStatsModule['calcGoDefense'];
+  calcGoSpeed?: PokemonStatsModule['calcGoSpeed'];
+  calcCpMultiplier?: PokemonStatsModule['calcCpMultiplier'];
+  calcGoCp?: PokemonStatsModule['calcGoCp'];
+  getGoStatsById?: (id: number, level: number) => PokemonGoStats | null;
 }
 
-interface RocketTeamsModule {
-  pool?: Array<{ id: number; name?: string }>;
+interface RocketStageMember {
+  id: number;
+  speciesId: number;
+  name: string | null;
+  level: number;
+  overrides?: PokemonCollectionEntry | null | undefined;
 }
 
-type RocketStage = any;
+interface RocketStage {
+  id: string;
+  name: string;
+  quote?: string;
+  icon?: string;
+  team: ReadonlyArray<RocketStageMember>;
+}
+
+interface RocketTeamsModule extends ReadonlyArray<RocketStage> {}
+
+type StateListener = (state: Record<string, unknown>) => void;
+
+interface AppStateApi {
+  get<T = unknown>(key: string, fallback?: T): T | null;
+  set(key: string, value: unknown): void;
+  remove(key: string): void;
+  clear(): void;
+  keys(): string[];
+  all(): Record<string, unknown>;
+  read(): Record<string, unknown>;
+  replace(next: Record<string, unknown>): void;
+  merge(patch: Record<string, unknown>): void;
+  write(patch: Record<string, unknown>): void;
+  subscribe(listener: StateListener): () => void;
+}
+
+interface PlayerCollectionApi {
+  createPokemon(spec: PokemonCollectionEntry): PokemonCollectionEntry | null;
+  releasePokemon(uid: string): boolean;
+}
+
+interface UiHelpers {
+  attachDragScroll(el: HTMLElement | null): () => void;
+}
 
 interface Window {
+  PokemonFastMoves?: PokemonFastMovesModule;
+  PokemonChargedMoves?: PokemonChargedMovesModule;
+  PokemonTypes?: ReadonlyArray<string>;
+  PokemonSpecies?: Record<number, PokemonSpeciesData>;
+  PokemonStats?: PokemonStatsModule;
   PokemonData?: PokemonDataStore;
   RocketTeams?: RocketTeamsModule;
   getRocketStageByIndex?: (index: number) => RocketStage | null | undefined;
   getRocketStageById?: (id: string) => RocketStage | null | undefined;
-  readState?: () => any;
-  writeState?: (state: any) => void;
-  setStateValue?: (key: string, value: any) => void;
+  AppState?: AppStateApi;
+  PlayerCollection?: PlayerCollectionApi;
+  UI?: UiHelpers;
+  readState?: () => Record<string, unknown>;
+  writeState?: (patch: Record<string, unknown>) => void;
+  mergeState?: (patch: Record<string, unknown>) => void;
+  replaceState?: (next: Record<string, unknown>) => void;
+  clearState?: () => void;
+  setStateValue?: (key: string, value: unknown) => void;
   removeStateValue?: (key: string) => void;
-  getStateValue?: (key: string, fallback?: any) => any;
+  getStateValue?: <T = unknown>(key: string, fallback?: T) => T | null;
+  subscribeState?: (listener: StateListener) => () => void;
 }
+

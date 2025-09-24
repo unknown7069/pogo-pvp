@@ -1,11 +1,5 @@
-(function (global) {
-  // UI helpers namespace
-  const UI = (global.UI = global.UI || {});
-
-  // Attach drag-to-scroll behavior to a scrollable element (vertical).
-  // Adds/removes the 'dragging' class and suppresses the click immediately
-  // following a drag gesture to avoid accidental activations.
-  UI.attachDragScroll = function attachDragScroll(el) {
+(function (global: Window & typeof window) {
+  function attachDragScroll(el: HTMLElement | null) {
     if (!el) return () => {};
 
     let isDown = false;
@@ -14,7 +8,7 @@
     let didDrag = false;
     let suppressNextClick = false;
 
-    const onPointerDown = (e) => {
+    const onPointerDown = (e: PointerEvent) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       isDown = true;
       el.classList.add('dragging');
@@ -23,7 +17,7 @@
       didDrag = false;
     };
 
-    const onPointerMove = (e) => {
+    const onPointerMove = (e: PointerEvent) => {
       if (!isDown) return;
       const dy = e.clientY - startY;
       if (Math.abs(dy) > 5) didDrag = true;
@@ -40,7 +34,7 @@
       }
     };
 
-    const onClickCapture = (e) => {
+    const onClickCapture = (e: MouseEvent) => {
       if (suppressNextClick) {
         e.preventDefault();
         e.stopPropagation();
@@ -53,7 +47,6 @@
     window.addEventListener('pointercancel', onPointerUp);
     el.addEventListener('click', onClickCapture, true);
 
-    // Return a detach function for cleanup if needed
     return function detach() {
       el.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
@@ -61,6 +54,8 @@
       window.removeEventListener('pointercancel', onPointerUp);
       el.removeEventListener('click', onClickCapture, true);
     };
-  };
+  }
 
+  const existing = global.UI || {};
+  global.UI = Object.assign({}, existing, { attachDragScroll });
 })(window);
