@@ -237,6 +237,15 @@ body {
   background: #fafafa;
 }
 
+.team-select-page .slot.clickable {
+  cursor: pointer;
+}
+
+.team-select-page .slot:focus-visible {
+  outline: 2px solid #007aff;
+  outline-offset: 2px;
+}
+
 .team-select-page .slot.filled {
   border-style: solid;
   border-color: #8a8a8a;

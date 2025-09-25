@@ -46,6 +46,12 @@
 
       const SHOW_SPRITES = true;
 
+      slots.forEach((slot) => {
+        slot.setAttribute('role', 'button');
+        slot.setAttribute('aria-pressed', 'false');
+        slot.tabIndex = -1;
+      });
+
       const readState = (typeof window.readState === 'function')
         ? window.readState
         : function () {
@@ -355,6 +361,9 @@
           slot.removeAttribute('title');
           slot.removeAttribute('data-uid');
           slot.classList.remove('filled');
+          slot.classList.remove('clickable');
+          slot.setAttribute('aria-pressed', 'false');
+          slot.tabIndex = -1;
           while (slot.firstChild) slot.removeChild(slot.firstChild);
 
           if (!uid) continue;
@@ -364,8 +373,11 @@
           const name = entry.name || (mon && mon.name) || 'Pokemon';
           const label = `${name} (Lvl ${formatLevel(entry.level)})`;
           slot.classList.add('filled');
+          slot.classList.add('clickable');
           slot.setAttribute('data-uid', uid);
           slot.title = label;
+          slot.setAttribute('aria-pressed', 'true');
+          slot.tabIndex = 0;
 
           const spriteUrl = getSpriteUrl(mon);
           if (spriteUrl) {
@@ -389,6 +401,15 @@
             slot.textContent = label;
           }
         }
+      }
+
+      function removeFromWorkingTeam(uid) {
+        const index = workingTeam.indexOf(uid);
+        if (index === -1) return false;
+        workingTeam.splice(index, 1);
+        updateSlots();
+        updateGridSelection();
+        return true;
       }
 
       function loadExisting() {
@@ -436,6 +457,23 @@
           }
         });
       }
+
+      slots.forEach((slot) => {
+        slot.addEventListener('click', () => {
+          const uid = slot.getAttribute('data-uid');
+          if (!uid) return;
+          if (removeFromWorkingTeam(uid)) slot.blur();
+        });
+
+        slot.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+            const uid = slot.getAttribute('data-uid');
+            if (!uid) return;
+            event.preventDefault();
+            if (removeFromWorkingTeam(uid)) slot.blur();
+          }
+        });
+      });
 
       grid.addEventListener('click', (event) => {
         const btn = event.target.closest('.pokemon-btn');
