@@ -3,7 +3,6 @@
     const PD = (window.PokemonData || {});
     const grid = document.getElementById('pokemonGrid');
     const countEl = document.getElementById('pokemonCount');
-    const searchInput = document.getElementById('pokemonSearch');
     if (!grid)
         return;
     const SHOW_SPRITES = true;
@@ -186,28 +185,20 @@
         if (countEl)
             countEl.textContent = `Pokemon ${count}`;
     }
-    function renderGrid(list) {
+    function renderGrid(collection) {
         grid.textContent = '';
-        const base = Array.isArray(list) ? list : collection;
-        if (!base.length) {
+        updateCount(collection.length);
+        if (!collection.length) {
             const empty = document.createElement('div');
             empty.className = 'empty-state';
             empty.textContent = 'No Pokemon saved yet.';
             grid.appendChild(empty);
-            lastRenderedCount = 0;
-            updateCount(0);
             return;
         }
-        const term = searchTerm;
         const frag = document.createDocumentFragment();
-        let matchCount = 0;
-        base.forEach((entry) => {
+        collection.forEach((entry) => {
+            var _a, _b, _c;
             const mon = getMonById(entry);
-            const displayName = entry.name || (mon && mon.name) || 'Pokemon';
-            const nameForMatch = displayName.toLowerCase();
-            if (term && nameForMatch.indexOf(term) === -1)
-                return;
-            const level = entry.level != null ? entry.level : 0;
             const card = document.createElement('div');
             card.className = 'pokemon-card';
             const btn = document.createElement('button');
@@ -215,16 +206,16 @@
             btn.type = 'button';
             btn.dataset.id = String(entry.id);
             btn.dataset.uid = entry.uid || undefined;
-            btn.dataset.level = String(level);
-            btn.dataset.name = displayName;
-            btn.setAttribute('aria-label', `${displayName} level ${formatLevel(level)}`);
-            const cp = computeCp(entry.id, level);
+            btn.dataset.level = String(entry.level);
+            btn.dataset.name = mon.name || 'Pokemon';
+            btn.setAttribute('aria-label', `${mon.name || 'Pokemon'} level ${formatLevel(entry.level)}`);
+            const cp = computeCp(entry.id, (_a = entry.level) !== null && _a !== void 0 ? _a : 0);
             const cpEl = document.createElement('div');
             cpEl.className = 'cp';
-            cpEl.textContent = `Lvl ${formatLevel(level)} | CP ${cp}`;
+            cpEl.textContent = `Lvl ${formatLevel((_b = entry.level) !== null && _b !== void 0 ? _b : 0)} | CP ${cp}`;
             const nameEl = document.createElement('div');
             nameEl.className = 'name';
-            nameEl.textContent = displayName;
+            nameEl.textContent = mon.name || 'Pokemon';
             if (SHOW_SPRITES) {
                 const spriteUrl = getSpriteUrl(mon);
                 if (spriteUrl) {
@@ -237,58 +228,26 @@
             card.appendChild(btn);
             card.appendChild(cpEl);
             card.appendChild(nameEl);
-            card.title = `${displayName} (Lvl ${formatLevel(level)})`;
+            card.title = `${mon.name || 'Pokemon'} (Lvl ${formatLevel((_c = entry.level) !== null && _c !== void 0 ? _c : 0)})`;
             frag.appendChild(card);
-            matchCount += 1;
         });
-        lastRenderedCount = matchCount;
-        updateCount(matchCount);
-        if (!matchCount) {
-            const empty = document.createElement('div');
-            empty.className = 'empty-state';
-            empty.textContent = 'No Pokemon match your search.';
-            grid.appendChild(empty);
-            return;
-        }
         grid.appendChild(frag);
     }
-
     const initialState = readState();
     let collection = getCollection(initialState);
-    let searchTerm = '';
-    let lastRenderedCount = 0;
-    renderGrid();
+    renderGrid(collection);
     if (typeof subscribeState === 'function') {
         subscribeState((stateSnapshot) => {
             const next = getCollection(stateSnapshot);
             if (!collectionEquals(collection, next)) {
                 collection = next;
-                renderGrid();
+                renderGrid(collection);
             }
             else {
-                updateCount(lastRenderedCount);
+                updateCount(collection.length);
             }
         });
     }
-    if (searchInput) {
-        const applySearch = () => {
-            const next = searchInput.value ? searchInput.value.trim().toLowerCase() : '';
-            if (next === searchTerm)
-                return;
-            searchTerm = next;
-            renderGrid();
-        };
-        searchInput.addEventListener('input', applySearch);
-        searchInput.addEventListener('search', applySearch);
-        searchInput.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && (searchTerm || searchInput.value)) {
-                searchTerm = '';
-                searchInput.value = '';
-                renderGrid();
-            }
-        });
-    }
-
     grid.addEventListener('click', (event) => {
         const target = event.target;
         const btn = target ? target.closest('.pokemon-btn') : null;

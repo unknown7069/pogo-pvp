@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -20,6 +20,7 @@
     .reward-item { display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px; width:92px; border:1px solid #e5e5e5; border-radius:12px; background:#fdfdfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
     .reward-item img { width:64px; height:64px; object-fit:contain; image-rendering:pixelated; }
     .reward-name { font-size:12px; font-weight:700; color:#333; text-transform:capitalize; }
+    .reward-amount { font-size:11px; font-weight:600; color:#555; }
     .reward-note { margin-top:10px; font-size:12px; color:#666; }
   </style>
   <script src="../dist/data/pokemon-types.js"></script>
@@ -32,6 +33,7 @@
   <script src="../dist/rocket/rocket-teams.js"></script>
   <script src="../dist/system/shared.js"></script>
   <script src="../dist/system/saving.js"></script>
+  <script src="../dist/items/item-data.js"></script>
 </head>
 <body>
   <div class="phone phone-column">
@@ -87,6 +89,115 @@
       const PD = window.PokemonData || {};
       const Collection = window.PlayerCollection || {};
       const MAX_REWARD_COUNT = 3;
+      const ITEMS_KEY = 'playerItems';
+      const ITEM_CAP = 9999;
+      const itemCatalog = (() => {
+        const data = window.ItemData;
+        if (data && Array.isArray(data.list) && data.list.length) {
+          return data;
+        }
+        console.warn('[Battle Summary] ItemData not available; using fallback definitions.');
+        const fallbackList = [
+          { key: 'rareCandy', name: 'Rare Candy', icon: 'https://archives.bulbagarden.net/media/upload/8/8d/Bag_Rare_Candy_Sprite.png', description: '', categories: ['candy'] },
+          { key: 'fastTm', name: 'Fast TM', icon: 'https://archives.bulbagarden.net/media/upload/9/9a/Bag_TM_Normal_Sprite.png', description: '', categories: ['tm'] },
+          { key: 'chargedTm', name: 'Charged TM', icon: 'https://archives.bulbagarden.net/media/upload/5/57/Bag_TM_Electric_Sprite.png', description: '', categories: ['tm'] },
+          { key: 'eliteTm', name: 'Elite TM', icon: 'https://archives.bulbagarden.net/media/upload/6/64/Bag_TM_Fighting_Sprite.png', description: '', categories: ['tm'] },
+          { key: 'sunStone', name: 'Sun Stone', icon: 'https://archives.bulbagarden.net/media/upload/a/ad/Bag_Sun_Stone_Sprite.png', description: '', categories: ['evolution'] },
+          { key: 'moonStone', name: 'Moon Stone', icon: 'https://archives.bulbagarden.net/media/upload/a/ae/Bag_Moon_Stone_Sprite.png', description: '', categories: ['evolution'] },
+          { key: 'fireStone', name: 'Fire Stone', icon: 'https://archives.bulbagarden.net/media/upload/8/86/Bag_Fire_Stone_Sprite.png', description: '', categories: ['evolution'] },
+          { key: 'waterStone', name: 'Water Stone', icon: 'https://archives.bulbagarden.net/media/upload/3/3f/Bag_Water_Stone_Sprite.png', description: '', categories: ['evolution'] },
+          { key: 'thunderStone', name: 'Thunder Stone', icon: 'https://archives.bulbagarden.net/media/upload/7/79/Bag_Thunder_Stone_Sprite.png', description: '', categories: ['evolution'] },
+          { key: 'leafStone', name: 'Leaf Stone', icon: 'https://archives.bulbagarden.net/media/upload/e/eb/Bag_Leaf_Stone_Sprite.png', description: '', categories: ['evolution'] },
+          { key: 'iceStone', name: 'Ice Stone', icon: 'https://archives.bulbagarden.net/media/upload/5/51/Bag_Ice_Stone_Sprite.png', description: '', categories: ['evolution'] },
+          { key: 'shinyStone', name: 'Shiny Stone', icon: 'https://archives.bulbagarden.net/media/upload/4/45/Bag_Shiny_Stone_Sprite.png', description: '', categories: ['evolution'] },
+          { key: 'duskStone', name: 'Dusk Stone', icon: 'https://archives.bulbagarden.net/media/upload/b/b2/Bag_Dusk_Stone_Sprite.png', description: '', categories: ['evolution'] },
+          { key: 'dawnStone', name: 'Dawn Stone', icon: 'https://archives.bulbagarden.net/media/upload/7/70/Bag_Dawn_Stone_Sprite.png', description: '', categories: ['evolution'] }
+        ];
+        const fallbackByKey = {};
+        fallbackList.forEach(function (item) {
+          fallbackByKey[item.key] = item;
+        });
+        return {
+          list: fallbackList,
+          byKey: fallbackByKey,
+          tmKeys: ['fastTm', 'chargedTm'],
+          evolutionKeys: ['sunStone', 'moonStone', 'fireStone', 'waterStone', 'thunderStone', 'leafStone', 'iceStone', 'shinyStone', 'duskStone', 'dawnStone'],
+        };
+      })();
+
+      const ITEM_INFO = itemCatalog.byKey || {};
+      const TM_ITEMS = itemCatalog.tmKeys && itemCatalog.tmKeys.length ? itemCatalog.tmKeys.slice() : ['fastTm', 'chargedTm'];
+      const EVOLUTION_ITEMS = itemCatalog.evolutionKeys && itemCatalog.evolutionKeys.length
+        ? itemCatalog.evolutionKeys.slice()
+        : ['sunStone', 'moonStone', 'fireStone', 'waterStone', 'thunderStone', 'leafStone', 'iceStone', 'shinyStone', 'duskStone', 'dawnStone'];
+
+      function normalizeStoredItemValue(value) {
+        const num = Math.floor(Number(value));
+        if (!Number.isFinite(num)) return 0;
+        if (num < 0) return 0;
+        if (num > ITEM_CAP) return ITEM_CAP;
+        return num;
+      }
+
+      function sanitizeItemValue(value) {
+        const num = Math.floor(Number(value));
+        if (!Number.isFinite(num) || num <= 0) return 0;
+        if (num > ITEM_CAP) return ITEM_CAP;
+        return num;
+      }
+
+      function pickRandomItem(list) {
+        if (!Array.isArray(list) || !list.length) return null;
+        const idx = Math.floor(Math.random() * list.length);
+        return list[idx];
+      }
+
+      function readItemCounts() {
+        const snapshot = readState();
+        const raw = snapshot && snapshot[ITEMS_KEY];
+        const result = {};
+        if (raw && typeof raw === 'object') {
+          Object.keys(raw).forEach(function (key) {
+            const value = normalizeStoredItemValue(raw[key]);
+            if (value > 0) result[key] = value;
+          });
+        }
+        return result;
+      }
+
+      function writeItemCounts(map) {
+        const normalized = {};
+        if (map && typeof map === 'object') {
+          Object.keys(map).forEach(function (key) {
+            const value = normalizeStoredItemValue(map[key]);
+            if (value > 0) normalized[key] = value;
+          });
+        }
+        const payload = {};
+        payload[ITEMS_KEY] = normalized;
+        writeState(payload);
+      }
+
+      function incrementItemCounts(updates) {
+        if (!updates || typeof updates !== 'object') return [];
+        const base = readItemCounts();
+        const next = Object.assign({}, base);
+        const granted = [];
+        Object.keys(updates).forEach(function (key) {
+          const amount = sanitizeItemValue(updates[key]);
+          if (!amount) return;
+          const current = normalizeStoredItemValue(next[key]);
+          const total = Math.min(ITEM_CAP, current + amount);
+          const delta = total - current;
+          if (delta <= 0) return;
+          next[key] = total;
+          granted.push({ key: key, amount: delta });
+        });
+        if (granted.length) {
+          writeItemCounts(next);
+        }
+        return granted;
+      }
 
       const DEFAULT_ROCKET_STAGES = [
         { id: 'grunt-male', team: [ { level: 5 }, { level: 5 }, { level: 7 } ] },
@@ -311,8 +422,39 @@
         }
         return results;
       }
+
+      function grantItemRewards(level) {
+        const updates = {};
+        const levelNumber = Number(level);
+        const candyAmount = sanitizeItemValue(levelNumber > 0 ? Math.max(1, Math.round(levelNumber)) : 1);
+        if (candyAmount > 0) {
+          updates.rareCandy = candyAmount;
+        }
+        const tmKey = pickRandomItem(TM_ITEMS);
+        if (tmKey) {
+          updates[tmKey] = (updates[tmKey] || 0) + 1;
+        }
+        const evoKey = pickRandomItem(EVOLUTION_ITEMS);
+        if (evoKey) {
+          updates[evoKey] = (updates[evoKey] || 0) + 1;
+        }
+        const granted = incrementItemCounts(updates);
+        return Array.isArray(granted) ? granted : [];
+      }
+
       function renderRewards(list, options) {
-        if (!Array.isArray(list) || !list.length || !rewardGrid) return;
+        if (!rewardGrid) return;
+        const filteredItems = options && Array.isArray(options.items)
+          ? options.items.map(function (entry) {
+              if (!entry || !entry.key) return null;
+              const amount = sanitizeItemValue(entry.amount != null ? entry.amount : entry.count);
+              if (!amount) return null;
+              return { key: entry.key, amount: amount };
+            }).filter(Boolean)
+          : [];
+        const hasPokemon = Array.isArray(list) && list.length > 0;
+        const hasItems = filteredItems.length > 0;
+        if (!hasPokemon && !hasItems) return;
         if (rewardSection && rewardSection.classList) {
           rewardSection.classList.remove('hidden');
         } else if (rewardSection) {
@@ -321,38 +463,66 @@
         rewardGrid.textContent = '';
         const alreadyClaimed = options && options.alreadyClaimed;
         if (rewardTitle) {
-          setText(rewardTitle, alreadyClaimed ? 'Unlocked Pokemon' : 'New Pokemon Unlocked!');
+          if (hasPokemon) setText(rewardTitle, alreadyClaimed ? 'Unlocked Pokemon' : 'New Pokemon Unlocked!');
+          else setText(rewardTitle, alreadyClaimed ? 'Rewards Claimed' : 'Rewards Earned!');
         }
         if (rewardNote) {
-          setText(rewardNote, alreadyClaimed ? 'Already added to your collection.' : 'Added to your collection!');
+          if (hasPokemon && hasItems) setText(rewardNote, alreadyClaimed ? 'Rewards already collected.' : 'Added to your collection and item bag!');
+          else if (hasPokemon) setText(rewardNote, alreadyClaimed ? 'Already added to your collection.' : 'Added to your collection!');
+          else setText(rewardNote, alreadyClaimed ? 'Already stored in your item bag.' : 'Stored in your item bag!');
         }
-        for (let i = 0; i < list.length; i++) {
-          const info = list[i];
-          if (!info || !Number.isFinite(info.id)) continue;
-          const wrapper = document.createElement('div');
-          wrapper.className = 'reward-item';
-          const mon = PD && typeof PD.getPokemonById === 'function' ? PD.getPokemonById(info.id) : null;
-          const displayName = info.name || (mon && mon.name) || ('#' + info.id);
-          let spriteUrl = '';
-          if (PD && typeof PD.getForwardSpriteUrl === 'function') {
-            try {
-              spriteUrl = PD.getForwardSpriteUrl(mon || displayName);
-            } catch (_) {}
+        if (hasPokemon) {
+          for (let i = 0; i < list.length; i++) {
+            const info = list[i];
+            if (!info || !Number.isFinite(info.id)) continue;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'reward-item';
+            const mon = PD && typeof PD.getPokemonById === 'function' ? PD.getPokemonById(info.id) : null;
+            const displayName = info.name || (mon && mon.name) || ('#' + info.id);
+            let spriteUrl = '';
+            if (PD && typeof PD.getForwardSpriteUrl === 'function') {
+              try {
+                spriteUrl = PD.getForwardSpriteUrl(mon || displayName);
+              } catch (_) {}
+            }
+            if (!spriteUrl && mon && mon.sprite) {
+              spriteUrl = mon.sprite;
+            }
+            if (spriteUrl) {
+              const img = document.createElement('img');
+              img.alt = displayName;
+              img.src = spriteUrl;
+              wrapper.appendChild(img);
+            }
+            const label = document.createElement('div');
+            label.className = 'reward-name';
+            label.textContent = displayName;
+            wrapper.appendChild(label);
+            rewardGrid.appendChild(wrapper);
           }
-          if (!spriteUrl && mon && mon.sprite) {
-            spriteUrl = mon.sprite;
+        }
+        if (hasItems) {
+          for (let i = 0; i < filteredItems.length; i++) {
+            const entry = filteredItems[i];
+            const meta = ITEM_INFO[entry.key] || { name: entry.key, icon: '' };
+            const wrapper = document.createElement('div');
+            wrapper.className = 'reward-item';
+            if (meta.icon) {
+              const img = document.createElement('img');
+              img.alt = meta.name || entry.key;
+              img.src = meta.icon;
+              wrapper.appendChild(img);
+            }
+            const label = document.createElement('div');
+            label.className = 'reward-name';
+            label.textContent = meta.name || entry.key;
+            wrapper.appendChild(label);
+            const amountLabel = document.createElement('div');
+            amountLabel.className = 'reward-amount';
+            amountLabel.textContent = 'x' + entry.amount;
+            wrapper.appendChild(amountLabel);
+            rewardGrid.appendChild(wrapper);
           }
-          if (spriteUrl) {
-            const img = document.createElement('img');
-            img.alt = displayName;
-            img.src = spriteUrl;
-            wrapper.appendChild(img);
-          }
-          const label = document.createElement('div');
-          label.className = 'reward-name';
-          label.textContent = displayName;
-          wrapper.appendChild(label);
-          rewardGrid.appendChild(wrapper);
         }
       }
       let title = 'Battle Result';
@@ -361,7 +531,7 @@
         if (r.outcome === 'win') title = 'You Won!';
         else if (r.outcome === 'lose') title = 'You Lost';
         else if (r.outcome === 'forfeit') title = 'You Forfeited';
-        else if (r.outcome === 'tie') title = 'It\'s a Tie!';
+        else if (r.outcome === 'tie') title = "It's a Tie!";
         const vs = r.opponent ? `Opponent: ${r.opponent}` : '';
         detail = vs;
       } else {
@@ -373,20 +543,33 @@
         const existing = Array.isArray(r.rewardPokemon)
           ? r.rewardPokemon.filter(function (item) { return item && Number.isFinite(item.id); })
           : [];
-        if (r.rewardClaimed && existing.length) {
-          renderRewards(existing, { alreadyClaimed: true });
+        const storedItems = Array.isArray(r.rewardItems)
+          ? r.rewardItems.map(function (entry) {
+              if (!entry || !entry.key) return null;
+              const amount = sanitizeItemValue(entry.amount != null ? entry.amount : entry.count);
+              if (!amount) return null;
+              return { key: entry.key, amount: amount };
+            }).filter(Boolean)
+          : [];
+        if (r.rewardClaimed) {
+          if (existing.length || storedItems.length) {
+            renderRewards(existing, { alreadyClaimed: true, items: storedItems });
+          }
         } else {
           const picks = pickRandomSpecies(MAX_REWARD_COUNT);
           const awarded = awardPokemon(picks);
-          if (awarded.length) {
-            renderRewards(awarded, { alreadyClaimed: false });
-            const nextResult = Object.assign({}, r || {}, {
-              rewardClaimed: true,
-              rewardPokemon: awarded
-            });
-            writeState({ lastBattleResult: nextResult });
-            r = nextResult;
+          const grantedItems = grantItemRewards(rewardLevel);
+          const hasRewards = awarded.length > 0 || grantedItems.length > 0;
+          if (hasRewards) {
+            renderRewards(awarded, { alreadyClaimed: false, items: grantedItems });
           }
+          const nextResult = Object.assign({}, r || {}, {
+            rewardClaimed: true,
+            rewardPokemon: awarded,
+            rewardItems: grantedItems
+          });
+          writeState({ lastBattleResult: nextResult });
+          r = nextResult;
         }
       }
       function goBack(){ window.location.href = 'rocket-select.html'; }
@@ -395,4 +578,12 @@
   </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
 

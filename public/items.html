@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -6,20 +6,112 @@
   <title>Items</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
-    .phone { display: flex; flex-direction: column; font-family: sans-serif; }
-    .header { padding: 16px; font-size: 20px; font-weight: 700; text-align: center; border-bottom: 1px solid #e5e5e5; background: #fff; }
-    .content { flex: 1 1 auto; padding: 16px; background: #fafafa; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-    .back { display: inline-block; margin-bottom: 8px; color: #007aff; text-decoration: none; }
+    .phone.phone-column {
+      background: #f5f5f7;
+      overflow: hidden;
+    }
+
+    .list-header {
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .items-content {
+      flex: 1 1 auto;
+      padding: 16px;
+      padding-bottom: 96px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: #f5f5f7;
+    }
+
+    .items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .item-row {
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .item-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .item-icon {
+      width: 48px;
+      height: 48px;
+      flex: 0 0 auto;
+      object-fit: contain;
+      image-rendering: auto;
+    }
+
+    .item-text {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1 1 auto;
+    }
+
+    .item-row .item-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111;
+    }
+
+    .item-row .item-desc {
+      font-size: 13px;
+      color: #555;
+      line-height: 1.4;
+    }
+
+    .item-count {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-weight: 700;
+      color: #111;
+    }
+
+    .count-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .count-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111;
+    }
   </style>
 </head>
 <body>
-  <div class="phone">
-    <div class="header">items</div>
-    <div class="content">
-      <a class="back" href="rocket-select.html">← Back to Rocket Select</a>
-      <p>Items page (placeholder).</p>
+  <div class="phone phone-column">
+    <div class="list-header">Items</div>
+    <div class="items-content">
+      <div class="items-list" id="itemsList" role="list"></div>
+    </div>
+    <div class="bottom-close">
+      <button class="close-btn" id="closeBtn" type="button" aria-label="Back to Rocket Select">&times;</button>
     </div>
   </div>
+  <script src="../dist/system/shared.js"></script>
+  <script src="../dist/system/saving.js"></script>
+  <script src="../dist/items/item-data.js"></script>
+  <script src="../dist/items/items.js"></script>
 </body>
 </html>
 
