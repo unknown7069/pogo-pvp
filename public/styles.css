@@ -255,3 +255,20 @@ body {
 .team-select-page .pokemon-grid {
   margin-top: var(--gap);
 }
+
+/* Search bar shared styles */
+.search-bar {
+  padding: 12px 16px 0;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 1px solid #d0d0d0;
+  border-radius: 12px;
+  background: #f7f7f7;
+  color: #111;
+  box-sizing: border-box;
+}
+

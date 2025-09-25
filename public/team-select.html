@@ -14,6 +14,9 @@
       <div class="slot" data-slot="1">Empty</div>
       <div class="slot" data-slot="2">Empty</div>
     </div>
+    <div class="search-bar">
+      <input type="search" id="teamSearch" class="search-input" placeholder="Search Pokemon" aria-label="Search by name" autocomplete="off" />
+    </div>
     <div class="pokemon-grid" id="pokemonGrid"></div>
     <div class="actions action-bar two">
       <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
@@ -35,6 +38,7 @@
       const store = window.AppState || null;
       const PD = window.PokemonData || {};
       const grid = document.getElementById('pokemonGrid');
+      const searchInput = document.getElementById('teamSearch');
       const slots = Array.from(document.querySelectorAll('.slot'));
       const cancelBtn = document.getElementById('cancelBtn');
       const doneBtn = document.getElementById('doneBtn');
@@ -206,6 +210,7 @@
       const buttonsByUid = new Map();
       let workingTeam = [];
       let prevSelected = new Set();
+      let searchTerm = '';
 
       function updateGridSelection() {
         const selected = new Set(workingTeam);
@@ -224,6 +229,7 @@
       function renderGrid() {
         grid.textContent = '';
         buttonsByUid.clear();
+
         if (!collection.length) {
           const empty = document.createElement('div');
           empty.textContent = 'No Pokemon saved yet.';
@@ -233,11 +239,20 @@
           empty.style.color = '#555';
           empty.style.fontWeight = '600';
           grid.appendChild(empty);
+          updateGridSelection();
           return;
         }
+
+        const term = searchTerm;
         const frag = document.createDocumentFragment();
+        let matchCount = 0;
+
         collection.forEach((entry) => {
           const mon = getMonById(entry);
+          const displayName = entry.name || (mon && mon.name) || 'Pokemon';
+          const nameForMatch = displayName.toLowerCase();
+          if (term && nameForMatch.indexOf(term) === -1) return;
+
           const card = document.createElement('div');
           card.className = 'pokemon-card';
 
@@ -247,9 +262,9 @@
           btn.dataset.uid = entry.uid;
           btn.dataset.id = String(entry.id);
           btn.dataset.level = String(entry.level);
-          btn.dataset.name = mon.name || 'Pokemon';
+          btn.dataset.name = displayName;
           btn.setAttribute('aria-pressed', 'false');
-          btn.setAttribute('aria-label', `${mon.name || 'Pokemon'} level ${formatLevel(entry.level)}`);
+          btn.setAttribute('aria-label', `${displayName} level ${formatLevel(entry.level)}`);
 
           const cp = computeCp(entry.id, entry.level);
           const cpEl = document.createElement('div');
@@ -258,7 +273,7 @@
 
           const nameEl = document.createElement('div');
           nameEl.className = 'name';
-          nameEl.textContent = mon.name || 'Pokemon';
+          nameEl.textContent = displayName;
 
           if (SHOW_SPRITES) {
             const spriteUrl = getSpriteUrl(mon);
@@ -273,11 +288,26 @@
           card.appendChild(btn);
           card.appendChild(cpEl);
           card.appendChild(nameEl);
-          card.title = `${mon.name || 'Pokemon'} (Lvl ${formatLevel(entry.level)})`;
+          card.title = `${displayName} (Lvl ${formatLevel(entry.level)})`;
 
           buttonsByUid.set(entry.uid, btn);
           frag.appendChild(card);
+          matchCount += 1;
         });
+
+        if (!matchCount) {
+          const empty = document.createElement('div');
+          empty.textContent = 'No Pokemon match your search.';
+          empty.className = 'empty-state';
+          empty.style.padding = '32px 16px';
+          empty.style.textAlign = 'center';
+          empty.style.color = '#555';
+          empty.style.fontWeight = '600';
+          grid.appendChild(empty);
+          updateGridSelection();
+          return;
+        }
+
         grid.appendChild(frag);
         updateGridSelection();
       }
@@ -388,6 +418,24 @@
 
       renderGrid();
       loadExisting();
+
+      if (searchInput) {
+        const applySearch = () => {
+          const next = searchInput.value ? searchInput.value.trim().toLowerCase() : '';
+          if (next === searchTerm) return;
+          searchTerm = next;
+          renderGrid();
+        };
+        searchInput.addEventListener('input', applySearch);
+        searchInput.addEventListener('search', applySearch);
+        searchInput.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape' && (searchTerm || searchInput.value)) {
+            searchTerm = '';
+            searchInput.value = '';
+            renderGrid();
+          }
+        });
+      }
 
       grid.addEventListener('click', (event) => {
         const btn = event.target.closest('.pokemon-btn');
