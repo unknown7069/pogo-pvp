@@ -48,9 +48,7 @@ else {
         }
         function readCounts() {
             const snapshot = readState();
-            console.log(snapshot);
             const raw = snapshot && typeof snapshot === 'object' ? snapshot[ITEMS_KEY] : null;
-            console.log(raw);
             return normalizeCounts(raw);
         }
         let counts = readCounts();
