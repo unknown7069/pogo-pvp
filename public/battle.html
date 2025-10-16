@@ -20,6 +20,10 @@
       position: relative;
       background: transparent;
       overflow: hidden;
+      will-change: transform;
+    }
+    .battle-stage.shake {
+      animation: stage-shake var(--shake-duration, 260ms) cubic-bezier(0.36, 0.07, 0.19, 0.97);
     }
 
     .manual-switch-column {
@@ -107,7 +111,10 @@
     .effect-slot { position: relative; height: 0; }
     /* Energy bar below HP */
     .energy-bar-wrap { position:relative; height:6px; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.6); border-radius:6px; overflow:hidden; margin-top:4px; }
-    .energy-bar { position:absolute; inset:0 auto 0 0; width:var(--en,0%); background:linear-gradient(90deg,#00b4ff,#007aff); transition: width 200ms ease; }
+    .energy-bar { position:absolute; inset:0 auto 0 0; width:var(--en,0%); background:linear-gradient(90deg,#00b4ff,#007aff); transition: width 200ms ease; z-index: 1; }
+    .energy-timer { position:absolute; top:0; bottom:0; right:0; left:auto; width:0%; opacity:0; pointer-events:none; transition: width 120ms linear, opacity 120ms linear; mix-blend-mode: screen; }
+    .energy-timer.energy-timer-charge { background: linear-gradient(90deg, rgba(255,92,138,0.65), rgba(255,0,80,0.55)); z-index: 3; }
+    .energy-timer.energy-timer-cooldown { background: linear-gradient(90deg, rgba(255,140,66,0.6), rgba(255,68,0,0.5)); z-index: 2; }
     .hp-count { font-size:12px; opacity:0.8; margin-top:4px; display:flex; justify-content:space-between; align-items:center; }
     .status-buff { font-size: 8px; font-weight: 1000; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.6); margin-right: 6px; }
     .pokemon-orbs { display:flex; gap:4px; margin-left:6px; }
@@ -128,11 +135,39 @@
     .sprite.opponent .effect-text.fade { transform: translateX(-50%) translateY(-2px) scaleX(-1); }
 
     /* Sprite <img> sizing */
-    .sprite img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: auto; pointer-events: none; transform: scale(2); transform-origin: bottom center; }
+    .sprite img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: auto; pointer-events: none; position: relative; z-index: 1; transform: scale(2); transform-origin: bottom center; filter: drop-shadow(0 3px 8px rgba(0,0,0,0.35)); transition: filter 160ms ease; }
     /* Depth cues: slightly smaller opponent, slightly larger player */
     .sprite.player img { transform: scale(2.5); }
     /* Counteract container flip for opponent so front sprite isn't mirrored, include scale */
     .sprite.opponent img { transform: scaleX(-1) scale(1.5); }
+
+    /* Charge-up glow */
+    .sprite img.charging { filter: brightness(1.1) drop-shadow(0 0 18px var(--charge-color-soft, rgba(255,255,255,0.8))); transition: filter var(--charge-duration, 1000ms) ease-in; }
+    .sprite img.charge-release { filter: brightness(1) drop-shadow(0 2px 10px rgba(0,0,0,0.3)); transition: filter 220ms ease-out; }
+    .sprite img.fainted { opacity: 0.6; filter: grayscale(1) brightness(0.55) drop-shadow(0 3px 8px rgba(0,0,0,0.25)); animation-play-state: paused !important; }
+
+    /* Charge ring container */
+    .charge-effect { position: absolute; bottom: -8%; left: 50%; width: clamp(150px, 28vw, 280px); aspect-ratio: 1; transform: translateX(-50%); pointer-events: none; z-index: 0; mix-blend-mode: screen; }
+    .charge-effect .charge-ring { position: absolute; bottom: 0; left: 50%; width: 100%; height: 100%; transform: translateX(-50%) scale(1); border-radius: 50%; border: clamp(3px, 0.8vw, 6px) solid var(--charge-color); background: transparent; box-shadow: 0 0 18px var(--charge-color-soft, rgba(255,255,255,0.45)); opacity: var(--ring-opacity, 0.85); animation: charge-ring-tighten var(--charge-duration, 1000ms) cubic-bezier(0.3, 0.0, 0.6, 1) infinite; }
+    .charge-effect.fade-out .charge-ring { animation: charge-ring-fade 220ms ease-out forwards; }
+    @keyframes charge-ring-tighten {
+      0% { transform: translateX(-50%) scale(1); opacity: var(--ring-opacity, 0.85); }
+      60% { transform: translateX(-50%) scale(0.4); opacity: var(--ring-opacity, 0.85); }
+      100% { transform: translateX(-50%) scale(0.08); opacity: 0; }
+    }
+    @keyframes charge-ring-fade {
+      from { opacity: var(--ring-opacity, 0.65); transform: translateX(-50%) scale(0.3); }
+      to { opacity: 0; transform: translateX(-50%) scale(0.15); }
+    }
+    @keyframes stage-shake {
+      0% { transform: translate3d(0, 0, 0); }
+      15% { transform: translate3d(calc(var(--shake-intensity, 16px) * 0.25), calc(var(--shake-intensity, 16px) * -0.2), 0); }
+      30% { transform: translate3d(calc(var(--shake-intensity, 16px) * -0.3), calc(var(--shake-intensity, 16px) * 0.25), 0); }
+      45% { transform: translate3d(calc(var(--shake-intensity, 16px) * 0.24), calc(var(--shake-intensity, 16px) * 0.15), 0); }
+      60% { transform: translate3d(calc(var(--shake-intensity, 16px) * -0.2), calc(var(--shake-intensity, 16px) * -0.15), 0); }
+      75% { transform: translate3d(calc(var(--shake-intensity, 16px) * 0.1), calc(var(--shake-intensity, 16px) * 0.18), 0); }
+      100% { transform: translate3d(0, 0, 0); }
+    }
 
     /* Fast-attack lunge animations (duration scales with attackRate) */
     .sprite img.lunge-player { animation: player-lunge var(--lunge-duration, 180ms) ease-out; }
@@ -146,6 +181,22 @@
     @keyframes opponent-lunge {
       0% { transform: scaleX(-1) scale(1.5) translateX(0); }
       50% { transform: scaleX(-1) scale(1.5) translateX(-18%); }
+      100% { transform: scaleX(-1) scale(1.5) translateX(0); }
+    }
+    .sprite img.charged-lunge-player { animation: charged-lunge-player var(--charged-duration, 320ms) cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+    .sprite img.charged-lunge-opponent { animation: charged-lunge-opponent var(--charged-duration, 320ms) cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+    @keyframes charged-lunge-player {
+      0% { transform: scale(2.5) translateX(0); }
+      25% { transform: scale(2.5) translateX(calc(var(--charged-distance, 24) * 0.6%)); }
+      45% { transform: scale(2.5) translateX(calc(var(--charged-distance, 24) * 1%)); }
+      70% { transform: scale(2.5) translateX(calc(var(--charged-distance, 24) * 0.35%)); }
+      100% { transform: scale(2.5) translateX(0); }
+    }
+    @keyframes charged-lunge-opponent {
+      0% { transform: scaleX(-1) scale(1.5) translateX(0); }
+      25% { transform: scaleX(-1) scale(1.5) translateX(calc(var(--charged-distance, 24) * -0.6%)); }
+      45% { transform: scaleX(-1) scale(1.5) translateX(calc(var(--charged-distance, 24) * -1%)); }
+      70% { transform: scaleX(-1) scale(1.5) translateX(calc(var(--charged-distance, 24) * -0.35%)); }
       100% { transform: scaleX(-1) scale(1.5) translateX(0); }
     }
 
@@ -225,6 +276,8 @@
             </div>
             <div class="effect-slot" id="opponent-effect-slot"></div>
             <div class="energy-bar-wrap" aria-label="Opponent Energy">
+              <div class="energy-timer energy-timer-charge" id="opponent-energy-charge"></div>
+              <div class="energy-timer energy-timer-cooldown" id="opponent-energy-cooldown"></div>
               <div class="energy-bar" id="opponent-energy" style="--en: 0%"></div>
             </div>
             <div class="hp-count">
@@ -256,6 +309,8 @@
             </div>
             <div class="effect-slot" id="player-effect-slot"></div>
             <div class="energy-bar-wrap" aria-label="Player Energy">
+              <div class="energy-timer energy-timer-charge" id="player-energy-charge"></div>
+              <div class="energy-timer energy-timer-cooldown" id="player-energy-cooldown"></div>
               <div class="energy-bar" id="player-energy" style="--en: 0%"></div>
             </div>
             <div class="hp-count">

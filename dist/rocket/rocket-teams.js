@@ -7,7 +7,7 @@
             icon: 'https://archives.bulbagarden.net/media/upload/thumb/8/80/VSTeam_GO_Rocket_Grunt_M.png/120px-VSTeam_GO_Rocket_Grunt_M.png',
             team: [
                 { speciesId: 19, name: 'Rattata', level: 5 },
-                { speciesId: 41, name: 'Zubat', level: 5 },
+                { speciesId: 41, name: 'Zubat', level: 6 },
                 { speciesId: 66, name: 'Machop', level: 7 },
             ],
         },
@@ -17,9 +17,9 @@
             quote: 'Get ready to lose twerp!',
             icon: 'https://archives.bulbagarden.net/media/upload/thumb/6/62/VSTeam_GO_Rocket_Grunt_F.png/120px-VSTeam_GO_Rocket_Grunt_F.png',
             team: [
-                { speciesId: 23, name: 'Ekans', level: 7 },
-                { speciesId: 96, name: 'Drowzee', level: 7 },
-                { speciesId: 109, name: 'Koffing', level: 9 },
+                { speciesId: 23, name: 'Ekans', level: 8 },
+                { speciesId: 96, name: 'Drowzee', level: 9 },
+                { speciesId: 109, name: 'Koffing', level: 10 },
             ],
         },
         {
@@ -28,9 +28,9 @@
             quote: "Don't waste my time.",
             icon: 'https://archives.bulbagarden.net/media/upload/thumb/d/d9/VSCliff.png/120px-VSCliff.png',
             team: [
-                { speciesId: 142, name: 'Aerodactyl', level: 40 },
-                { speciesId: 95, name: 'Onix', level: 42 },
-                { speciesId: 68, name: 'Machamp', level: 43 },
+                { speciesId: 142, name: 'Aerodactyl', level: 14 },
+                { speciesId: 95, name: 'Onix', level: 15 },
+                { speciesId: 68, name: 'Machamp', level: 16 },
             ],
         },
         {
@@ -39,9 +39,9 @@
             quote: "I'll show you true power.",
             icon: 'https://archives.bulbagarden.net/media/upload/thumb/5/5c/VSArlo.png/120px-VSArlo.png',
             team: [
-                { speciesId: 80, name: 'Slowbro', level: 39 },
-                { speciesId: 123, name: 'Scyther', level: 41 },
-                { speciesId: 45, name: 'Vileplume', level: 43 },
+                { speciesId: 80, name: 'Slowbro', level: 20 },
+                { speciesId: 123, name: 'Scyther', level: 21 },
+                { speciesId: 45, name: 'Vileplume', level: 22 },
             ],
         },
         {
@@ -50,9 +50,9 @@
             quote: "You'll regret this.",
             icon: 'https://archives.bulbagarden.net/media/upload/thumb/8/82/VSSierra.png/120px-VSSierra.png',
             team: [
-                { speciesId: 38, name: 'Ninetales', level: 38 },
-                { speciesId: 94, name: 'Gengar', level: 40 },
-                { speciesId: 131, name: 'Lapras', level: 42 },
+                { speciesId: 38, name: 'Ninetales', level: 28 },
+                { speciesId: 94, name: 'Gengar', level: 29 },
+                { speciesId: 131, name: 'Lapras', level: 30 },
             ],
         },
         {
@@ -61,9 +61,18 @@
             quote: 'So, you think you can challenge me?',
             icon: 'https://archives.bulbagarden.net/media/upload/f/f3/VSGiovanni_GO.png',
             team: [
-                { speciesId: 53, name: 'Persian', level: 45 },
-                { speciesId: 34, name: 'Nidoking', level: 47 },
-                { speciesId: 111, name: 'Rhyhorn', level: 50 },
+                { speciesId: 53, name: 'Persian', level: 35 },
+                { speciesId: 34, name: 'Nidoking', level: 36 },
+                { speciesId: 111, name: 'Rhyhorn', level: 37 },
+            ],
+        },
+        {
+            id: 'mewtwo',
+            name: 'Mewtwo',
+            quote: '...',
+            icon: 'https://www.pokemon.com/static-assets/content-assets/cms2/img/video-games/_tiles/pokemon-go/art/shadow-mewtwo.png',
+            team: [
+                { speciesId: 151, name: 'Mewtwo', level: 50 },
             ],
         },
     ];

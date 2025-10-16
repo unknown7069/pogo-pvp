@@ -21,6 +21,7 @@ interface MoveData {
   buffs?: Record<string, unknown>;
   rank?: number;
   buff?: MoveBuffConfig;
+  chargeUpTime?: number;
 }
 
 interface PokemonBaseStats {

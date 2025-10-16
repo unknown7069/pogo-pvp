@@ -25,12 +25,42 @@
     const playerText = $('player-hp-text');
     const oppEnBar = $('opponent-energy');
     const playerEnBar = $('player-energy');
+    const oppChargeBar = $('opponent-energy-charge');
+    const oppCooldownBar = $('opponent-energy-cooldown');
+    const playerChargeBar = $('player-energy-charge');
+    const playerCooldownBar = $('player-energy-cooldown');
     const playerAttackBuffText = $('player-attack-buff');
     const playerDefenceBuffText = $('player-defence-buff');
     const playerSpeedBuffText = $('player-speed-buff');
     const opponentAttackBuffText = $('opponent-attack-buff');
     const opponentDefenceBuffText = $('opponent-defence-buff');
     const opponentSpeedBuffText = $('opponent-speed-buff');
+    const stageEl = document.querySelector('.battle-stage');
+    const TYPE_COLOR_MAP = Object.freeze({
+        normal: '#a8a77a',
+        fire: '#ee8130',
+        water: '#6390f0',
+        electric: '#f7d02c',
+        grass: '#7ac74c',
+        ice: '#96d9d6',
+        fighting: '#c22e28',
+        poison: '#a33ea1',
+        ground: '#e2bf65',
+        flying: '#a98ff3',
+        psychic: '#f95587',
+        bug: '#a6b91a',
+        rock: '#b6a136',
+        ghost: '#735797',
+        dragon: '#6f35fc',
+        dark: '#705746',
+        steel: '#b7b7ce',
+        fairy: '#d685ad',
+    });
+    const chargeVisuals = {
+        player: { el: null, releaseTimer: null, removeTimer: null },
+        opponent: { el: null, releaseTimer: null, removeTimer: null },
+    };
+    let cameraShakeTimer = null;
     const moveButtons = Array.from(document.querySelectorAll('.move-btn'));
     const manualSwitchColumn = $('manualSwitches');
     // Forfeit/back button: overlay confirm dialog
@@ -137,18 +167,158 @@
     }
     function fastFromId(id) {
         const m = FAST_BY_ID && FAST_BY_ID[id];
-        if (!m)
-            return { name: 'Fast', dmg: 0, energyGain: 0, attackRate: 0, type: 'normal' };
+        if (!m) {
+            return { id: 'fast_fallback', name: 'Fast', dmg: 0, energyGain: 0, attackRate: 0, type: 'normal' };
+        }
         const attackRate = Number(m.attackRate || 0); // in seconds
-        return { name: m.name, dmg: Number(m.power || 0), energyGain: Number(m.energyGain || 0), attackRate, type: m.type };
+        return {
+            id: m.id || id || 'fast_move',
+            name: m.name,
+            dmg: Number(m.power || 0),
+            energyGain: Number(m.energyGain || 0),
+            attackRate,
+            type: m.type,
+        };
+    }
+    function computeEnergyRate(stats, _fastMove) {
+        var _a;
+        const baseSpeed = Number((_a = stats === null || stats === void 0 ? void 0 : stats.speed) !== null && _a !== void 0 ? _a : 0);
+        const adjustedSpeed = Math.max(100, baseSpeed + 100);
+        return adjustedSpeed / 100;
+    }
+    function setTimerBar(el, fraction) {
+        if (!el)
+            return;
+        const clamped = Math.max(0, Math.min(1, Number(fraction) || 0));
+        const widthPct = (clamped * 100).toFixed(1);
+        el.style.width = `${widthPct}%`;
+        el.style.opacity = clamped > 0 ? '1' : '0';
+    }
+    function colorForType(value) {
+        const key = String(value || '').toLowerCase();
+        return TYPE_COLOR_MAP[key] || '#ffffff';
+    }
+    function hexToRgba(hex, alpha) {
+        const clean = String(hex || '').replace('#', '');
+        if (clean.length === 3) {
+            const r = parseInt(clean[0] + clean[0], 16);
+            const g = parseInt(clean[1] + clean[1], 16);
+            const b = parseInt(clean[2] + clean[2], 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        if (clean.length === 6) {
+            const r = parseInt(clean.slice(0, 2), 16);
+            const g = parseInt(clean.slice(2, 4), 16);
+            const b = parseInt(clean.slice(4, 6), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        return `rgba(255, 255, 255, ${alpha})`;
+    }
+    function getSpriteHost(side) {
+        return side === 'player' ? playerSpriteEl : oppSpriteEl;
+    }
+    function getSpriteImage(side) {
+        return side === 'player' ? playerSpriteImg : oppSpriteImg;
+    }
+    function stopChargeVisual(side, immediate = false) {
+        const entry = chargeVisuals[side];
+        if (entry.releaseTimer != null) {
+            clearTimeout(entry.releaseTimer);
+            entry.releaseTimer = null;
+        }
+        if (entry.removeTimer != null) {
+            clearTimeout(entry.removeTimer);
+            entry.removeTimer = null;
+        }
+        const img = getSpriteImage(side);
+        if (img) {
+            img.classList.remove('charging');
+            if (!immediate) {
+                img.classList.add('charge-release');
+                entry.releaseTimer = window.setTimeout(() => {
+                    img.classList.remove('charge-release');
+                    entry.releaseTimer = null;
+                }, 240);
+            }
+            else {
+                img.classList.remove('charge-release');
+            }
+            img.style.removeProperty('--charge-duration');
+            img.style.removeProperty('--charge-color');
+            img.style.removeProperty('--charge-color-soft');
+        }
+        if (entry.el && entry.el.parentNode) {
+            if (!immediate) {
+                entry.el.classList.add('fade-out');
+                entry.removeTimer = window.setTimeout(() => {
+                    if (entry.el && entry.el.parentNode) {
+                        entry.el.parentNode.removeChild(entry.el);
+                    }
+                    entry.el = null;
+                    entry.removeTimer = null;
+                }, 260);
+            }
+            else {
+                entry.el.parentNode.removeChild(entry.el);
+                entry.el = null;
+            }
+        }
+        if (immediate) {
+            entry.releaseTimer = null;
+            entry.removeTimer = null;
+        }
+        const bar = side === 'player' ? playerChargeBar : oppChargeBar;
+        setTimerBar(bar, 0);
+    }
+    function startChargeVisual(side, move, durationMs) {
+        const host = getSpriteHost(side);
+        const img = getSpriteImage(side);
+        if (!host || !img)
+            return;
+        stopChargeVisual(side, true);
+        const clamped = Math.max(200, Math.round(Number.isFinite(durationMs) ? Number(durationMs) : 0));
+        const hex = colorForType(move === null || move === void 0 ? void 0 : move.type);
+        const effect = document.createElement('div');
+        effect.className = 'charge-effect';
+        effect.style.setProperty('--charge-duration', `${clamped}ms`);
+        effect.style.setProperty('--charge-color', hex);
+        effect.style.setProperty('--charge-color-soft', hexToRgba(hex, 0.55));
+        effect.style.setProperty('--charge-color-strong', hexToRgba(hex, 0.9));
+        const ringCount = 3;
+        for (let i = 0; i < ringCount; i += 1) {
+            const ring = document.createElement('div');
+            ring.className = 'charge-ring';
+            ring.style.animationDuration = `${clamped}ms`;
+            const delay = -i * (clamped / ringCount);
+            ring.style.animationDelay = `${delay}ms`;
+            ring.style.setProperty('--ring-opacity', String(Math.max(0.35, 0.9 - i * 0.18)));
+            effect.appendChild(ring);
+        }
+        if (host.firstChild)
+            host.insertBefore(effect, host.firstChild);
+        else
+            host.appendChild(effect);
+        chargeVisuals[side].el = effect;
+        chargeVisuals[side].releaseTimer = null;
+        chargeVisuals[side].removeTimer = null;
+        img.classList.remove('charge-release');
+        img.classList.add('charging');
+        img.style.setProperty('--charge-duration', `${clamped}ms`);
+        img.style.setProperty('--charge-color', hex);
+        img.style.setProperty('--charge-color-soft', hexToRgba(hex, 0.65));
+        updateChargeTimer(side);
     }
     function chargedFromId(id) {
         const m = CHARGED_BY_ID && CHARGED_BY_ID[id];
-        if (!m)
-            return { name: 'Charged', energy: 50, dmg: 80, coolDownMs: 1500, type: 'normal' };
+        if (!m) {
+            return { name: 'Charged', energy: 50, dmg: 80, coolDownMs: 1500, type: 'normal', chargeUpMs: 1000, chargeUpTicks: 2 };
+        }
         const coolDownUnits = Number(m.coolDownTime || 1);
         const coolDownMs = coolDownUnits * 500; // 500ms units
-        return { name: m.name, energy: Number(m.energyCost || 0), dmg: Number(m.power || 0), coolDownMs, type: m.type, specialEffects: m.specialEffects };
+        const chargeUpSeconds = Math.max(0, Number(m.chargeUpTime || 0));
+        const chargeUpMs = chargeUpSeconds * 1000;
+        const chargeUpTicks = Math.max(0, Math.round(chargeUpSeconds * 2));
+        return { name: m.name, energy: Number(m.energyCost || 0), dmg: Number(m.power || 0), coolDownMs, type: m.type, specialEffects: m.specialEffects, chargeUpMs, chargeUpTicks };
     }
     // ---------------------------
     // Pokemon factories
@@ -215,6 +385,8 @@
         }
         if (!mon) {
             const maxHP = 1;
+            const fallbackStats = { hp: maxHP, attack: 50, defense: 50, speed: 50 };
+            const fallbackFast = fastFromId('quick_attack');
             return {
                 id: key || 0,
                 name: 'Pokemon',
@@ -223,10 +395,10 @@
                 maxHP,
                 hp: maxHP,
                 energy: 0,
-                energyRate: 1,
+                energyRate: computeEnergyRate(fallbackStats, fallbackFast),
                 cp: 500,
-                stats: { hp: maxHP, attack: 50, defense: 50, speed: 50 },
-                fast: fastFromId('quick_attack'),
+                stats: fallbackStats,
+                fast: fallbackFast,
                 charged: [],
                 attackBuff: 0,
                 defenseBuff: 0,
@@ -246,6 +418,8 @@
         const fastId = Array.isArray(mon.fastMoves) && mon.fastMoves[0];
         const chargedIds = Array.isArray(mon.chargedMoves) ? mon.chargedMoves : [];
         const charged = chargedIds.slice(0, 3).map(chargedFromId);
+        const fastMove = fastFromId(fastId);
+        const energyRate = computeEnergyRate(stats, fastMove);
         let cp = 10;
         try {
             if (PD === null || PD === void 0 ? void 0 : PD.calcGoCp)
@@ -262,8 +436,8 @@
             energy: 0,
             cp,
             stats: stats,
-            energyRate: (Number(stats.speed || 100) / 100),
-            fast: fastFromId(fastId),
+            energyRate,
+            fast: fastMove,
             charged: charged,
             attackBuff: 0,
             defenseBuff: 0,
@@ -663,12 +837,12 @@
     const state = {
         active: false,
         controlsDisabled: true,
-        timers: { global: null, switchCountdown: null, switchAuto: null },
+        timers: { global: null, switchCountdown: null, switchAuto: null, opponentSwitchDelay: null },
         tick: 0,
         cooldowns: { playerSwitchReady: 0, opponentSwitchReady: 0 },
         schedule: {
-            player: { fastTicks: 2, lockUntilTick: 0, pendingChargedIndex: null },
-            opponent: { fastTicks: 2, lockUntilTick: 0, pendingChargedIndex: null },
+            player: { fastTicks: 2, lockUntilTick: 0, pendingChargedIndex: null, charging: null, cooldownStartTick: null, cooldownEndTick: null },
+            opponent: { fastTicks: 2, lockUntilTick: 0, pendingChargedIndex: null, charging: null, cooldownStartTick: null, cooldownEndTick: null },
         },
     };
     // ---------------------------
@@ -687,6 +861,14 @@
             playerText.textContent = `${Math.max(0, Math.round(player.hp))}/${player.maxHP}`;
         if (oppText)
             oppText.textContent = `${Math.max(0, Math.round(opponent.hp))}/${opponent.maxHP}`;
+        if (playerSpriteImg) {
+            const fainted = player.hp <= 0;
+            playerSpriteImg.classList.toggle('fainted', fainted);
+        }
+        if (oppSpriteImg) {
+            const fainted = opponent.hp <= 0;
+            oppSpriteImg.classList.toggle('fainted', fainted);
+        }
         // Initialize previous values on first run
         if (prevPlayerHpPct == null)
             prevPlayerHpPct = pPct;
@@ -820,6 +1002,10 @@
             setEn(playerEnBar, pPct);
         if (oppEnBar)
             setEn(oppEnBar, oPct);
+        updateChargeTimer('player');
+        updateChargeTimer('opponent');
+        updateCooldownVisual('player');
+        updateCooldownVisual('opponent');
     }
     function getAttackBuff(target) {
         return 1 + Math.pow(target.attackBuff / 10, 0.6);
@@ -1119,6 +1305,18 @@
         state.schedule.opponent.lockUntilTick = 0;
         state.schedule.player.pendingChargedIndex = null;
         state.schedule.opponent.pendingChargedIndex = null;
+        state.schedule.player.charging = null;
+        state.schedule.opponent.charging = null;
+        state.schedule.player.cooldownStartTick = null;
+        state.schedule.player.cooldownEndTick = null;
+        state.schedule.opponent.cooldownStartTick = null;
+        state.schedule.opponent.cooldownEndTick = null;
+        stopChargeVisual('player', true);
+        stopChargeVisual('opponent', true);
+        clearCooldown('player');
+        clearCooldown('opponent');
+        updateChargeTimer('player');
+        updateChargeTimer('opponent');
     }
     function queueCharge(side, index) {
         if (!state.active)
@@ -1127,6 +1325,8 @@
         if (!sched)
             return;
         if (sched.pendingChargedIndex != null)
+            return;
+        if (sched.charging)
             return;
         const attacker = side === 'player' ? player : opponent;
         const move = attacker.charged[index];
@@ -1142,7 +1342,7 @@
         if (!state.active)
             return;
         const s = state.schedule.opponent;
-        if (!s || s.pendingChargedIndex != null)
+        if (!s || s.pendingChargedIndex != null || s.charging)
             return;
         const options = opponent.charged
             .map((m, i) => ({ m, i }))
@@ -1163,18 +1363,41 @@
         let playerAction = null; // { kind: 'fast'|'charged', move, index? }
         let opponentAction = null;
         if (state.tick >= pSched.lockUntilTick) {
-            if (pSched.pendingChargedIndex != null) {
+            let blockFast = false;
+            if (pSched.charging) {
+                if (state.tick >= pSched.charging.readyTick) {
+                    stopChargeVisual('player');
+                    playerAction = { kind: 'charged', move: pSched.charging.move, index: pSched.charging.index };
+                    pSched.charging = null;
+                }
+                else {
+                    blockFast = true;
+                }
+            }
+            if (!playerAction && pSched.pendingChargedIndex != null && !blockFast) {
                 const i = pSched.pendingChargedIndex;
                 const m = player.charged[i];
                 if (m && player.energy >= m.energy) {
-                    playerAction = { kind: 'charged', move: m, index: i };
+                    const chargeTicks = Math.max(0, Number(m.chargeUpTicks || 0));
+                    if (chargeTicks > 0) {
+                        const readyTick = state.tick + chargeTicks;
+                        pSched.charging = { move: m, index: i, readyTick, startTick: state.tick };
+                        pSched.lockUntilTick = readyTick;
+                        startChargeVisual('player', m, chargeTicks * TICK_MS);
+                        blockFast = true;
+                    }
+                    else {
+                        playerAction = { kind: 'charged', move: m, index: i };
+                    }
                 }
                 else {
                     pSched.pendingChargedIndex = null;
+                    pSched.charging = null;
+                    stopChargeVisual('player', true);
                 }
             }
             // Gate fast moves strictly by global tick modulo their attackRate period in ticks
-            if (!playerAction) {
+            if (!playerAction && !blockFast) {
                 const period = Math.max(1, Number(pSched.fastTicks || fastTicksFor(player.fast)));
                 if (state.tick % period === 0) {
                     playerAction = { kind: 'fast', move: player.fast };
@@ -1182,18 +1405,41 @@
             }
         }
         if (state.tick >= oSched.lockUntilTick) {
-            if (oSched.pendingChargedIndex != null) {
+            let blockFast = false;
+            if (oSched.charging) {
+                if (state.tick >= oSched.charging.readyTick) {
+                    stopChargeVisual('opponent');
+                    opponentAction = { kind: 'charged', move: oSched.charging.move, index: oSched.charging.index };
+                    oSched.charging = null;
+                }
+                else {
+                    blockFast = true;
+                }
+            }
+            if (!opponentAction && oSched.pendingChargedIndex != null && !blockFast) {
                 const i = oSched.pendingChargedIndex;
                 const m = opponent.charged[i];
                 if (m && opponent.energy >= m.energy) {
-                    opponentAction = { kind: 'charged', move: m, index: i };
+                    const chargeTicks = Math.max(0, Number(m.chargeUpTicks || 0));
+                    if (chargeTicks > 0) {
+                        const readyTick = state.tick + chargeTicks;
+                        oSched.charging = { move: m, index: i, readyTick, startTick: state.tick };
+                        oSched.lockUntilTick = readyTick;
+                        startChargeVisual('opponent', m, chargeTicks * TICK_MS);
+                        blockFast = true;
+                    }
+                    else {
+                        opponentAction = { kind: 'charged', move: m, index: i };
+                    }
                 }
                 else {
                     oSched.pendingChargedIndex = null;
+                    oSched.charging = null;
+                    stopChargeVisual('opponent', true);
                 }
             }
             // Gate fast moves strictly by global tick modulo their attackRate period in ticks
-            if (!opponentAction) {
+            if (!opponentAction && !blockFast) {
                 const period = Math.max(1, Number(oSched.fastTicks || fastTicksFor(opponent.fast)));
                 if (state.tick % period === 0) {
                     opponentAction = { kind: 'fast', move: opponent.fast };
@@ -1230,6 +1476,7 @@
             const stab = stabMultiplier(playerAction.move.type, player.types);
             dmgToOpponent += Math.floor(0.5 * base * mult * stab);
             if (playerAction.kind === 'charged') {
+                triggerChargedImpact('player', playerAction.move);
                 pEnergyDelta -= Number(playerAction.move.energy || 0);
                 applyMoveBuff(player, opponent, playerAction.move);
             }
@@ -1246,6 +1493,7 @@
             const stab = stabMultiplier(opponentAction.move.type, opponent.types);
             dmgToPlayer += Math.floor(0.5 * base * mult * stab);
             if (opponentAction.kind === 'charged') {
+                triggerChargedImpact('opponent', opponentAction.move);
                 oEnergyDelta -= Number(opponentAction.move.energy || 0);
                 applyMoveBuff(opponent, player, opponentAction.move);
             }
@@ -1269,6 +1517,8 @@
                 const cd = chargedCooldownTicksFor(playerAction.move);
                 pSched.lockUntilTick = state.tick + cd;
                 pSched.pendingChargedIndex = null;
+                pSched.charging = null;
+                beginCooldown('player', cd);
             }
         }
         if (opponentAction) {
@@ -1276,6 +1526,8 @@
                 const cd = chargedCooldownTicksFor(opponentAction.move);
                 oSched.lockUntilTick = state.tick + cd;
                 oSched.pendingChargedIndex = null;
+                oSched.charging = null;
+                beginCooldown('opponent', cd);
             }
         }
         // Apply HP changes simultaneously
@@ -1308,6 +1560,10 @@
             updateBuffs();
             updateBuffsUI();
         }
+        updateCooldownVisual('player');
+        updateCooldownVisual('opponent');
+        updateChargeTimer('player');
+        updateChargeTimer('opponent');
         renderManualSwitchButtons();
         // Outcome checks
         const playerFainted = player.hp <= 0;
@@ -1346,12 +1602,154 @@
         const onEnd = () => { img.classList.remove(cls); };
         img.addEventListener('animationend', onEnd, { once: true });
     }
+    function getChargedPower(move) {
+        var _a, _b;
+        if (!move)
+            return 0;
+        const extended = move;
+        const raw = Number((_b = (_a = extended === null || extended === void 0 ? void 0 : extended.dmg) !== null && _a !== void 0 ? _a : move.power) !== null && _b !== void 0 ? _b : 0);
+        return Number.isFinite(raw) ? raw : 0;
+    }
+    function triggerCameraShake(intensitySource) {
+        if (!stageEl)
+            return;
+        const base = Math.max(0, intensitySource);
+        const pixels = Math.min(32, Math.max(6, base * 0.18));
+        const duration = Math.min(600, Math.max(220, 140 + pixels * 10));
+        stageEl.style.setProperty('--shake-intensity', `${pixels}px`);
+        stageEl.style.setProperty('--shake-duration', `${duration}ms`);
+        stageEl.classList.remove('shake');
+        if (cameraShakeTimer != null) {
+            clearTimeout(cameraShakeTimer);
+            cameraShakeTimer = null;
+        }
+        void stageEl.offsetWidth; // reflow to restart animation
+        stageEl.classList.add('shake');
+        cameraShakeTimer = window.setTimeout(() => {
+            if (stageEl)
+                stageEl.classList.remove('shake');
+            cameraShakeTimer = null;
+        }, duration);
+    }
+    function triggerChargedLunge(side, power) {
+        const img = side === 'player' ? playerSpriteImg : oppSpriteImg;
+        if (!img)
+            return;
+        const distance = Math.min(36, Math.max(12, power * 0.25));
+        const duration = Math.min(620, Math.max(260, 160 + distance * 8));
+        const cls = side === 'player' ? 'charged-lunge-player' : 'charged-lunge-opponent';
+        try {
+            img.style.setProperty('--charged-distance', `${distance}`);
+            img.style.setProperty('--charged-duration', `${duration}ms`);
+        }
+        catch (_) { }
+        img.classList.remove(cls);
+        void img.offsetWidth;
+        img.classList.add(cls);
+        window.setTimeout(() => {
+            img.classList.remove(cls);
+            img.style.removeProperty('--charged-distance');
+            img.style.removeProperty('--charged-duration');
+        }, duration + 60);
+    }
+    function triggerChargedImpact(side, move) {
+        const power = getChargedPower(move);
+        if (power <= 0)
+            return;
+        triggerCameraShake(power);
+        triggerChargedLunge(side, power);
+    }
+    function clearCooldown(side) {
+        const sched = state.schedule[side];
+        if (sched) {
+            sched.cooldownStartTick = null;
+            sched.cooldownEndTick = null;
+        }
+        const bar = side === 'player' ? playerCooldownBar : oppCooldownBar;
+        setTimerBar(bar, 0);
+        const img = getSpriteImage(side);
+        if (!img)
+            return;
+        img.classList.remove('cooldown');
+        img.style.removeProperty('--cooldown-progress');
+        img.style.animationPlayState = '';
+    }
+    function updateCooldownVisual(side) {
+        var _a, _b;
+        const sched = state.schedule[side];
+        if (!sched)
+            return;
+        const startTick = Number((_a = sched.cooldownStartTick) !== null && _a !== void 0 ? _a : -1);
+        const endTick = Number((_b = sched.cooldownEndTick) !== null && _b !== void 0 ? _b : -1);
+        if (!Number.isFinite(startTick) || !Number.isFinite(endTick) || endTick <= startTick) {
+            clearCooldown(side);
+            return;
+        }
+        if (state.tick >= endTick) {
+            clearCooldown(side);
+            return;
+        }
+        const img = getSpriteImage(side);
+        if (!img)
+            return;
+        const remaining = Math.max(0, endTick - state.tick);
+        const total = endTick - startTick;
+        const progress = Math.max(0, Math.min(1, 1 - (remaining / total)));
+        const remainingFraction = total > 0 ? Math.max(0, Math.min(1, remaining / total)) : 0;
+        const bar = side === 'player' ? playerCooldownBar : oppCooldownBar;
+        setTimerBar(bar, remainingFraction);
+        img.classList.add('cooldown');
+        img.style.setProperty('--cooldown-progress', progress.toFixed(3));
+        img.style.animationPlayState = 'paused';
+    }
+    function updateChargeTimer(side) {
+        var _a, _b;
+        const bar = side === 'player' ? playerChargeBar : oppChargeBar;
+        if (!bar)
+            return;
+        const sched = state.schedule[side];
+        if (!sched) {
+            setTimerBar(bar, 0);
+            return;
+        }
+        const charging = sched.charging;
+        if (!charging) {
+            setTimerBar(bar, 0);
+            return;
+        }
+        const startTick = Number((_a = charging.startTick) !== null && _a !== void 0 ? _a : state.tick);
+        const readyTick = Number((_b = charging.readyTick) !== null && _b !== void 0 ? _b : state.tick);
+        const total = Math.max(0, readyTick - startTick);
+        if (total <= 0) {
+            setTimerBar(bar, 0);
+            return;
+        }
+        const remaining = Math.max(0, readyTick - state.tick);
+        const fraction = Math.max(0, Math.min(1, remaining / total));
+        setTimerBar(bar, fraction);
+    }
+    function beginCooldown(side, durationTicks) {
+        const sched = state.schedule[side];
+        if (!sched)
+            return;
+        if (!Number.isFinite(durationTicks) || durationTicks <= 0) {
+            clearCooldown(side);
+            return;
+        }
+        sched.cooldownStartTick = state.tick;
+        sched.cooldownEndTick = state.tick + durationTicks;
+        updateCooldownVisual(side);
+    }
     function endBattle(reason) {
         state.active = false;
         setControlsDisabled(true);
         if (state.timers.global) {
             clearInterval(state.timers.global);
             state.timers.global = null;
+        }
+        if (state.timers.opponentSwitchDelay) {
+            clearTimeout(state.timers.opponentSwitchDelay);
+            state.timers.opponentSwitchDelay = null;
         }
     }
     function concludeBattle(outcome) {
@@ -1485,6 +1883,8 @@
         const nextPokemon = nextSlot && nextSlot.pokemon;
         if (!nextPokemon)
             return;
+        stopChargeVisual('player', true);
+        clearCooldown('player');
         const ballSpriteUrls = [
             'https://archives.bulbagarden.net/media/upload/7/75/Poké_Ball_battle_V.png',
             'https://archives.bulbagarden.net/media/upload/6/60/Premier_Ball_battle_V.png',
@@ -1697,6 +2097,8 @@
         // Mark current as fainted
         if (playerTeam[activePlayerIndex])
             playerTeam[activePlayerIndex].fainted = true;
+        stopChargeVisual('player', true);
+        clearCooldown('player');
         renderManualSwitchButtons();
         // Pause battle and lock controls
         state.active = false;
@@ -1731,6 +2133,8 @@
         return list;
     }
     function performOpponentSwitch(nextIndex) {
+        stopChargeVisual('opponent', true);
+        clearCooldown('opponent');
         activeOpponentIndex = nextIndex;
         opponent = opponentTeam[activeOpponentIndex].pokemon;
         applySwitchCooldown('opponent');
@@ -1753,11 +2157,17 @@
         var _a, _b, _c, _d;
         if (opponentTeam[activeOpponentIndex])
             opponentTeam[activeOpponentIndex].fainted = true;
+        stopChargeVisual('opponent', true);
+        clearCooldown('opponent');
         // Pause battle during switch / end evaluation
         state.active = false;
         setControlsDisabled(true);
         stopAllLoops();
         persistBattleState();
+        if (state.timers.opponentSwitchDelay) {
+            clearTimeout(state.timers.opponentSwitchDelay);
+            state.timers.opponentSwitchDelay = null;
+        }
         const opts = availableOppSwitches();
         if (opts.length === 0) {
             // No Pokémon left on opponent => win battle
@@ -1776,12 +2186,18 @@
             concludeBattle('win');
             return;
         }
-        // Switch to the first available opponent mon immediately
-        performOpponentSwitch(opts[0].index);
-        // Resume battle
-        state.active = true;
-        setControlsDisabled(false);
-        startAllLoops();
+        if (state.timers.opponentSwitchDelay) {
+            clearTimeout(state.timers.opponentSwitchDelay);
+            state.timers.opponentSwitchDelay = null;
+        }
+        state.timers.opponentSwitchDelay = window.setTimeout(() => {
+            state.timers.opponentSwitchDelay = null;
+            performOpponentSwitch(opts[0].index);
+            // Resume battle
+            state.active = true;
+            setControlsDisabled(false);
+            startAllLoops();
+        }, 2000);
     }
     // We have valid state if we reached here; start countdown
     startCountdown();
